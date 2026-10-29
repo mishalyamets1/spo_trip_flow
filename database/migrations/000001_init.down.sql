@@ -1,0 +1,3 @@
+REVOKE ALL ON DATABASE tripflow FROM trip_app_rw;
+DROP SCHEMA IF EXISTS trip_app CASCADE;
+DROP ROLE IF EXISTS trip_app_rw;

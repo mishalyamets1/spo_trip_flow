@@ -1,0 +1,10 @@
+import { Router } from "express";
+import * as requests from "../controllers/request.controller.js";
+export const requestRoutes = Router();
+requestRoutes.get("/", requests.list);
+requestRoutes.post("/", requests.create);
+requestRoutes.get("/:id", requests.get);
+requestRoutes.get("/:id/history", requests.history);
+requestRoutes.patch("/:id", requests.update);
+requestRoutes.delete("/:id", requests.remove);
+requestRoutes.post("/:id/submit", requests.submit);

@@ -1,0 +1,21 @@
+{
+  "name": "tripflow",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"npm run dev -w @tripflow/api\" \"npm run dev -w @tripflow/web\"",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test -w @tripflow/api",
+    "format": "prettier --write apps scripts tests docs/api package.json docker-compose.yml",
+    "format:check": "prettier --check apps scripts tests docs/api package.json docker-compose.yml"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,37 +1,110 @@
 # TripFlow
 
+Учебная система заявок на командировки: Next.js/React + Express + TypeScript + PostgreSQL 16.
+
+Реализованы вход, собственные заявки и смета, отправка, очередь согласующих, последовательное согласование, отказ с причиной и история. Используется существующая схема этапа I; данные обновляются миграциями.
+
 ## Быстрый старт
 
+Нужны Node.js 24, npm и Docker Compose. Если `.env` уже есть, не перезаписывайте его.
+
 ```bash
-cp .env.example .env   # задать пароли
-make up                # поднять PostgreSQL
-make migrate           # накатить миграции
-make check             # проверить данные
+cp .env.example .env  # только при первом запуске
+# Задайте пароли в .env, включая DEMO_PASSWORD; согласуйте DATABASE_URL.
+npm ci
+make setup
+make demo
+make app
 ```
 
-## Makefile
+Открыть **http://localhost:3000**.
 
-| Команда | Что делает |
-|---------|------------|
-| `make up` | Поднять PostgreSQL |
-| `make down` | Остановить |
-| `make reset` | Удалить volume и поднять заново |
-| `make migrate` | Накатить все миграции |
-| `make migrate-down` | Откатить последнюю миграцию |
-| `make migrate-status` | Текущая версия |
-| `make check` | Контрольные запросы из отчёта |
-| `make psql` | Консоль psql |
+Учебные пользователи:
 
-## Миграции
+- `maxim@example.test` — сотрудник.
+- `manager@example.test` — первый согласующий.
+- `finance@example.test` — второй согласующий.
 
+Пароль задаёт DEMO_PASSWORD при первом создании хэшей. В подготовленном локальном стенде использован `TripFlow-demo-2026!`. Повторный `make demo` не сбрасывает уже установленные хэши.
+
+Маршрут по умолчанию: руководитель → финансы. Сотрудник создаёт черновик, сохраняет его и отправляет; согласующие входят каждый под своей учётной записью и принимают решение по очереди. Исходная заявка этапа I сохраняет свой прежний маршрут из одного шага.
+
+## Разработка и проверки
+
+```bash
+make dev                    # web :3000 и api :4000 вне Docker
+npm run typecheck
+npm run build
+npm run format:check
+make check                  # исходные SQL-проверки Q-01–Q-08
+make test                   # API и БД, отдельная временная база
+node scripts/test.mjs --coverage  # покрытие бизнес-операций и валидации
 ```
-database/migrations/
-  000001_init.up.sql    — схема trip_app
-  000001_init.down.sql
-  000002_seed.up.sql    — тестовые данные
-  000002_seed.down.sql
+
+Перед `make dev` остановить контейнеры web/api, если они заняли порт 3000. `npm test` без TEST_DATABASE_URL пропускает интеграционный блок; полная проверка — `make test`.
+
+## Команды окружения
+
+- `make up` / `make down` — запустить БД / остановить всё окружение.
+- `make setup` — поднять БД, применить миграции, настроить пароль роли приложения.
+- `make migrate` / `make migrate-status` — обновить / проверить версию схемы.
+- `make provision` — настроить пароль trip_app_rw из окружения.
+- `make app` — собрать и запустить web/api/db; миграции предварительно выполнить отдельно.
+- `make backup` — резервная копия в игнорируемый каталог backups.
+- `make restore FILE=... DB=tripflow_restore_demo` — восстановить в отдельную новую БД.
+- `make psql` — SQL-консоль.
+
+`make reset` удаляет volume; `make migrate-down` откатывает последнюю миграцию. Для обычного запуска, обновления и восстановления эти команды не нужны.
+
+## Структура
+
+```text
+apps/web/              интерфейс Next.js
+apps/api/src/          Express, сессии, валидация и операции с БД
+apps/api/Dockerfile    контейнер API
+apps/web/Dockerfile    контейнер frontend
+scripts/               миграции, backup/restore и тестовое окружение
+tests/                проверки API, транзакций, доступа и валидации
+database/migrations/  история схемы 000001–000004
+docs/api/             OpenAPI 3.1
+docs/decisions/        архитектура, ER-дополнение, статусы и принятые решения
+docs/stage-2/          материалы работ №5–8
+docs/stage-3/          материалы работ №9–14
 ```
 
-Новая миграция — пара файлов `000003_название.up.sql` / `.down.sql`.
+Backend внутри `apps/api/src` разделён на слои:
 
-Используется [golang-migrate](https://github.com/golang-migrate/migrate) через Docker, ставить ничего не нужно.
+- `routes/` — URL и HTTP-методы.
+- `controllers/` — входные HTTP-данные и ответы.
+- `services/` — бизнес-правила и транзакции.
+- `repositories/` — SQL и доступ к PostgreSQL.
+- `middlewares/` — сессии, Origin, логирование и обработка ошибок.
+- `validators/` — Zod-схемы запросов.
+- `types/` — общие типы данных.
+- `utils/` — хэширование паролей и токенов.
+
+Пример операции: `request.routes.ts` → `request.controller.ts` → `request.service.ts` → `request.repository.ts`. `app.ts` только собирает Express-приложение. Подключение и механизм транзакций находятся в `db.ts`; бизнес-сервис передаёт один transaction client всем участвующим репозиториям.
+
+Frontend внутри `apps/web` использует файловый роутинг Next.js App Router:
+
+- `/login` — вход с возвратом на запрошенную страницу.
+- `/requests` — список; фильтры `status`, `from`, `to` и `page` находятся в URL.
+- `/requests/new` — создание черновика.
+- `/requests/[id]` — карточка с историей и действиями.
+- `/requests/[id]/edit` — редактирование собственного черновика.
+- `/approvals` — очередь согласующего.
+
+В `app/` находятся страницы, layouts, loading/error и 404. Компоненты сгруппированы в `components/auth`, `components/layout`, `components/requests`, `components/approvals` и `components/ui`. Сессией управляет `providers/auth-provider.tsx`, повторяющиеся запросы и действия вынесены в `hooks/`, методы API — в `services/`, типы — в `types/`, форматирование и HTTP-клиент — в `lib/`.
+
+Карточки открываются по прямым ссылкам; обновление страницы сохраняет адрес, а Back/Forward работают через браузерную историю. Неавторизованный пользователь переходит на `/login?next=...`. UI проверяет сессию на клиенте; доступ к данным и операциям по-прежнему контролирует backend.
+
+## Документация
+
+- [Запуск, обновление, восстановление и диагностика](docs/runbook.md).
+- [Контракт REST API](docs/api/openapi.yaml).
+- [Архитектура, схема БД и бизнес-правила](docs/decisions/001-implementation.md).
+- [Материалы этапа II](docs/stage-2/report.md).
+- [Материалы этапа III](docs/stage-3/report.md).
+- [Исходный план](docs/plan-stages-2-3.md).
+
+Это локальная учебная версия. Управление пользователями/справочниками через UI (FR-12), публичный HTTPS, нагрузочное испытание 50 пользователей/10 000 заявок и подтверждение совместимости во всех браузерах в эту реализацию не включены. Визуальная браузерная проверка ещё нужна.

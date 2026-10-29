@@ -1,0 +1,2336 @@
+{
+  "openapi": "3.1.0",
+  "info":
+    {
+      "title": "TripFlow API",
+      "version": "0.2.0",
+      "description": "Учебная версия этапов II–III. Все изменяющие запросы требуют Content-Type application/json и Origin, равный APP_ORIGIN. В режиме разработки также разрешены localhost и 127.0.0.1 на портах 3000/3001. Сессия в HttpOnly cookie на 8 часов; SameSite=Lax, Secure при COOKIE_SECURE=true. Идентификаторы BIGINT и суммы NUMERIC передаются строками. Ошибочный JSON: 400, слишком большой запрос: 413, неверный Content-Type: 415. Чужие заявки скрыты ответом 404. ADMIN-интерфейс и отмена заявок пока не реализованы.",
+    },
+  "servers": [{ "url": "http://localhost:3000/api" }],
+  "security": [{ "session": [] }],
+  "paths":
+    {
+      "/auth/login":
+        {
+          "post":
+            {
+              "summary": "Вход",
+              "description": "FR-01. Ограничение 30 попыток за 15 минут; 429 при превышении.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema": { "$ref": "#/components/schemas/User" },
+                              "example":
+                                {
+                                  "id": "1",
+                                  "employee_id": "1",
+                                  "full_name": "Сотрудник",
+                                  "email": "maxim@example.test",
+                                  "roles": ["EMPLOYEE"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "429":
+                    {
+                      "description": "Слишком много попыток",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "type": "object",
+                              "required": ["email", "password"],
+                              "properties":
+                                {
+                                  "email":
+                                    { "type": "string", "format": "email" },
+                                  "password":
+                                    {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 256,
+                                    },
+                                },
+                            },
+                          "example":
+                            {
+                              "email": "maxim@example.test",
+                              "password": "<учебный пароль>",
+                            },
+                        },
+                    },
+                },
+              "security": [],
+            },
+        },
+      "/auth/logout":
+        {
+          "post":
+            {
+              "summary": "Выход",
+              "description": "FR-01. Сессия удаляется на сервере.",
+              "responses":
+                {
+                  "204": { "description": "Успешно" },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    { "application/json": { "schema": { "type": "object" } } },
+                },
+            },
+        },
+      "/auth/me":
+        {
+          "get":
+            {
+              "summary": "Текущий пользователь",
+              "description": "FR-01, FR-02",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema": { "$ref": "#/components/schemas/User" },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/expense-categories":
+        {
+          "get":
+            {
+              "summary": "Категории расходов",
+              "description": "FR-05",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "type": "object",
+                                              "properties":
+                                                {
+                                                  "id":
+                                                    {
+                                                      "$ref": "#/components/schemas/Id",
+                                                    },
+                                                  "code": { "type": "string" },
+                                                  "name": { "type": "string" },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/requests":
+        {
+          "get":
+            {
+              "summary": "Собственные заявки",
+              "description": "FR-08. Сортировка created_at DESC, id DESC; 20 записей на страницу. from: start_date >= from; to: end_date <= to.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/RequestSummary",
+                                            },
+                                        },
+                                      "total": { "type": "integer" },
+                                      "page": { "type": "integer" },
+                                      "page_size":
+                                        { "type": "integer", "const": 20 },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "status",
+                    "in": "query",
+                    "schema":
+                      {
+                        "enum":
+                          [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "UNDER_REVIEW",
+                            "APPROVED",
+                            "REJECTED",
+                            "CANCELED",
+                          ],
+                      },
+                  },
+                  {
+                    "name": "from",
+                    "in": "query",
+                    "schema": { "type": "string", "format": "date" },
+                  },
+                  {
+                    "name": "to",
+                    "in": "query",
+                    "schema": { "type": "string", "format": "date" },
+                  },
+                  {
+                    "name": "page",
+                    "in": "query",
+                    "schema":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000,
+                        "default": 1,
+                      },
+                  },
+                ],
+            },
+          "post":
+            {
+              "summary": "Создать черновик",
+              "description": "FR-03, FR-05, FR-06. Нужна роль EMPLOYEE; автор из сессии. Поездка, смета и история записываются транзакционно.",
+              "responses":
+                {
+                  "201":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                              "example":
+                                {
+                                  "destination_country": "Россия",
+                                  "destination_city": "Казань",
+                                  "purpose": "Рабочая встреча с командой проекта",
+                                  "start_date": "2026-11-10",
+                                  "end_date": "2026-11-12",
+                                  "transport_type": "RAIL",
+                                  "accommodation_required": true,
+                                  "currency": "RUB",
+                                  "employee_comment": "",
+                                  "expenses":
+                                    [
+                                      {
+                                        "category_id": "1",
+                                        "amount": "12000.00",
+                                        "description": "Билеты",
+                                      },
+                                    ],
+                                  "id": "12",
+                                  "number": "TR-2026-000012",
+                                  "employee_id": "1",
+                                  "employee_name": "Сотрудник",
+                                  "status": "DRAFT",
+                                  "estimated_total": "12000.00",
+                                  "version": 1,
+                                  "steps": [],
+                                  "history":
+                                    [
+                                      {
+                                        "id": "20",
+                                        "old_status": null,
+                                        "new_status": "DRAFT",
+                                        "comment": "Заявка создана",
+                                      },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/RequestInput" },
+                          "example":
+                            {
+                              "destination_country": "Россия",
+                              "destination_city": "Казань",
+                              "purpose": "Рабочая встреча с командой проекта",
+                              "start_date": "2026-11-10",
+                              "end_date": "2026-11-12",
+                              "transport_type": "RAIL",
+                              "accommodation_required": true,
+                              "currency": "RUB",
+                              "employee_comment": "",
+                              "expenses":
+                                [
+                                  {
+                                    "category_id": "1",
+                                    "amount": "12000.00",
+                                    "description": "Билеты",
+                                  },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/requests/{id}":
+        {
+          "get":
+            {
+              "summary": "Карточка заявки",
+              "description": "FR-02, UC-05. Доступ автору или назначенному согласующему.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+          "patch":
+            {
+              "summary": "Обновить собственный черновик",
+              "description": "FR-04, FR-05. Полное содержимое редактируемых полей плюс текущая версия; после отправки запрещено.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                              "example":
+                                {
+                                  "destination_country": "Россия",
+                                  "destination_city": "Казань",
+                                  "purpose": "Рабочая встреча с командой проекта",
+                                  "start_date": "2026-11-10",
+                                  "end_date": "2026-11-12",
+                                  "transport_type": "RAIL",
+                                  "accommodation_required": true,
+                                  "currency": "RUB",
+                                  "employee_comment": "",
+                                  "expenses":
+                                    [
+                                      {
+                                        "category_id": "1",
+                                        "amount": "12000.00",
+                                        "description": "Билеты",
+                                      },
+                                    ],
+                                  "id": "12",
+                                  "number": "TR-2026-000012",
+                                  "employee_id": "1",
+                                  "employee_name": "Сотрудник",
+                                  "status": "DRAFT",
+                                  "estimated_total": "12000.00",
+                                  "version": 2,
+                                  "steps": [],
+                                  "history":
+                                    [
+                                      {
+                                        "id": "20",
+                                        "old_status": null,
+                                        "new_status": "DRAFT",
+                                        "comment": "Заявка создана",
+                                      },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/RequestUpdate" },
+                          "example":
+                            {
+                              "destination_country": "Россия",
+                              "destination_city": "Казань",
+                              "purpose": "Рабочая встреча с командой проекта",
+                              "start_date": "2026-11-10",
+                              "end_date": "2026-11-12",
+                              "transport_type": "RAIL",
+                              "accommodation_required": true,
+                              "currency": "RUB",
+                              "employee_comment": "",
+                              "expenses":
+                                [
+                                  {
+                                    "category_id": "1",
+                                    "amount": "12000.00",
+                                    "description": "Билеты",
+                                  },
+                                ],
+                              "version": 1,
+                            },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+          "delete":
+            {
+              "summary": "Удалить собственный черновик",
+              "description": "FR-04. Связанная поездка удаляется в той же транзакции.",
+              "responses":
+                {
+                  "204": { "description": "Успешно" },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema": { "$ref": "#/components/schemas/Version" },
+                          "example": { "version": 1 },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+        },
+      "/requests/{id}/submit":
+        {
+          "post":
+            {
+              "summary": "Отправить на согласование",
+              "description": "FR-06, FR-07, FR-11. Нужна хотя бы одна позиция сметы. Маршрут выбирается по подразделению и копируется в этапы; самосогласование запрещено.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                              "example":
+                                {
+                                  "destination_country": "Россия",
+                                  "destination_city": "Казань",
+                                  "purpose": "Рабочая встреча с командой проекта",
+                                  "start_date": "2026-11-10",
+                                  "end_date": "2026-11-12",
+                                  "transport_type": "RAIL",
+                                  "accommodation_required": true,
+                                  "currency": "RUB",
+                                  "employee_comment": "",
+                                  "expenses":
+                                    [
+                                      {
+                                        "category_id": "1",
+                                        "amount": "12000.00",
+                                        "description": "Билеты",
+                                      },
+                                    ],
+                                  "id": "12",
+                                  "number": "TR-2026-000012",
+                                  "employee_id": "1",
+                                  "employee_name": "Сотрудник",
+                                  "status": "SUBMITTED",
+                                  "estimated_total": "12000.00",
+                                  "version": 3,
+                                  "steps": [],
+                                  "history":
+                                    [
+                                      {
+                                        "id": "20",
+                                        "old_status": null,
+                                        "new_status": "DRAFT",
+                                        "comment": "Заявка создана",
+                                      },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema": { "$ref": "#/components/schemas/Version" },
+                          "example": { "version": 2 },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+        },
+      "/requests/{id}/history":
+        {
+          "get":
+            {
+              "summary": "История статусов",
+              "description": "UC-05. Доступ как к карточке.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/History",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+        },
+      "/approvals":
+        {
+          "get":
+            {
+              "summary": "Очередь текущих этапов",
+              "description": "FR-09, FR-11. Роль APPROVER. Только свой PENDING с утверждёнными предшествующими этапами. До 100 записей, сначала самые ранние.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "allOf":
+                                                [
+                                                  {
+                                                    "$ref": "#/components/schemas/RequestSummary",
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties":
+                                                      {
+                                                        "approval_id":
+                                                          {
+                                                            "$ref": "#/components/schemas/Id",
+                                                          },
+                                                        "step_order":
+                                                          { "type": "integer" },
+                                                      },
+                                                  },
+                                                ],
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/approvals/{id}/approve":
+        {
+          "post":
+            {
+              "summary": "Согласовать этап",
+              "description": "FR-10, FR-11. id — идентификатор этапа; version — версия заявки. Транзакция и блокировка заявки защищают от повторных решений.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                              "example":
+                                {
+                                  "destination_country": "Россия",
+                                  "destination_city": "Казань",
+                                  "purpose": "Рабочая встреча с командой проекта",
+                                  "start_date": "2026-11-10",
+                                  "end_date": "2026-11-12",
+                                  "transport_type": "RAIL",
+                                  "accommodation_required": true,
+                                  "currency": "RUB",
+                                  "employee_comment": "",
+                                  "expenses":
+                                    [
+                                      {
+                                        "category_id": "1",
+                                        "amount": "12000.00",
+                                        "description": "Билеты",
+                                      },
+                                    ],
+                                  "id": "12",
+                                  "number": "TR-2026-000012",
+                                  "employee_id": "1",
+                                  "employee_name": "Сотрудник",
+                                  "status": "UNDER_REVIEW",
+                                  "estimated_total": "12000.00",
+                                  "version": 4,
+                                  "steps": [],
+                                  "history":
+                                    [
+                                      {
+                                        "id": "20",
+                                        "old_status": null,
+                                        "new_status": "DRAFT",
+                                        "comment": "Заявка создана",
+                                      },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema": { "$ref": "#/components/schemas/Decision" },
+                          "example": { "version": 3, "comment": "Согласовано" },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+        },
+      "/approvals/{id}/reject":
+        {
+          "post":
+            {
+              "summary": "Отклонить заявку",
+              "description": "FR-10, FR-11. id — идентификатор этапа; version — версия заявки. Транзакция и блокировка заявки защищают от повторных решений.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                              "example":
+                                {
+                                  "destination_country": "Россия",
+                                  "destination_city": "Казань",
+                                  "purpose": "Рабочая встреча с командой проекта",
+                                  "start_date": "2026-11-10",
+                                  "end_date": "2026-11-12",
+                                  "transport_type": "RAIL",
+                                  "accommodation_required": true,
+                                  "currency": "RUB",
+                                  "employee_comment": "",
+                                  "expenses":
+                                    [
+                                      {
+                                        "category_id": "1",
+                                        "amount": "12000.00",
+                                        "description": "Билеты",
+                                      },
+                                    ],
+                                  "id": "12",
+                                  "number": "TR-2026-000012",
+                                  "employee_id": "1",
+                                  "employee_name": "Сотрудник",
+                                  "status": "REJECTED",
+                                  "estimated_total": "12000.00",
+                                  "version": 4,
+                                  "steps": [],
+                                  "history":
+                                    [
+                                      {
+                                        "id": "20",
+                                        "old_status": null,
+                                        "new_status": "DRAFT",
+                                        "comment": "Заявка создана",
+                                      },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema": { "$ref": "#/components/schemas/Decision" },
+                          "example":
+                            { "version": 3, "comment": "Уточните бюджет" },
+                        },
+                    },
+                },
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+            },
+        },
+      "/health/live":
+        {
+          "get":
+            {
+              "summary": "Проверка live",
+              "description": "ready проверяет подключение и наличие таблицы сессий; live — процесс API.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    { "status": { "type": "string" } },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "security": [],
+            },
+        },
+      "/health/ready":
+        {
+          "get":
+            {
+              "summary": "Проверка ready",
+              "description": "ready проверяет подключение и наличие таблицы сессий; live — процесс API.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    { "status": { "type": "string" } },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+              "security": [],
+            },
+        },
+    },
+  "components":
+    {
+      "securitySchemes":
+        {
+          "session":
+            { "type": "apiKey", "in": "cookie", "name": "tripflow_session" },
+        },
+      "schemas":
+        {
+          "Id":
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$",
+              "example": "12",
+            },
+          "Expense":
+            {
+              "type": "object",
+              "required": ["category_id", "amount"],
+              "properties":
+                {
+                  "category_id": { "$ref": "#/components/schemas/Id" },
+                  "amount":
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{1,12}(\\.\\d{1,2})?$",
+                      "example": "12000.00",
+                    },
+                  "description": { "type": "string", "maxLength": 300 },
+                },
+            },
+          "Error":
+            {
+              "type": "object",
+              "required": ["error"],
+              "properties":
+                {
+                  "error":
+                    {
+                      "type": "object",
+                      "required": ["message"],
+                      "properties":
+                        {
+                          "message": { "type": "string" },
+                          "requestId": { "type": "string" },
+                          "fields":
+                            {
+                              "type": "array",
+                              "items":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "path": { "type": "string" },
+                                      "message": { "type": "string" },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+          "User":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "employee_id": { "$ref": "#/components/schemas/Id" },
+                  "email": { "type": "string", "format": "email" },
+                  "full_name": { "type": "string" },
+                  "roles":
+                    {
+                      "type": "array",
+                      "items": { "enum": ["EMPLOYEE", "APPROVER", "ADMIN"] },
+                    },
+                },
+            },
+          "RequestInput":
+            {
+              "type": "object",
+              "required":
+                [
+                  "destination_country",
+                  "destination_city",
+                  "purpose",
+                  "start_date",
+                  "end_date",
+                  "transport_type",
+                  "accommodation_required",
+                  "currency",
+                  "expenses",
+                ],
+              "properties":
+                {
+                  "destination_country":
+                    { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "destination_city":
+                    { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "purpose":
+                    { "type": "string", "minLength": 10, "maxLength": 1000 },
+                  "start_date": { "type": "string", "format": "date" },
+                  "end_date": { "type": "string", "format": "date" },
+                  "transport_type":
+                    { "enum": ["AIR", "RAIL", "CAR", "BUS", "OTHER"] },
+                  "accommodation_required": { "type": "boolean" },
+                  "currency": { "type": "string", "enum": ["RUB"] },
+                  "employee_comment": { "type": "string", "maxLength": 2000 },
+                  "expenses":
+                    {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": { "$ref": "#/components/schemas/Expense" },
+                    },
+                  "version": { "type": "integer", "minimum": 1 },
+                },
+            },
+          "RequestUpdate":
+            {
+              "allOf":
+                [
+                  { "$ref": "#/components/schemas/RequestInput" },
+                  { "type": "object", "required": ["version"] },
+                ],
+            },
+          "Version":
+            {
+              "type": "object",
+              "required": ["version"],
+              "properties": { "version": { "type": "integer", "minimum": 1 } },
+            },
+          "Decision":
+            {
+              "type": "object",
+              "required": ["version"],
+              "properties":
+                {
+                  "version": { "type": "integer", "minimum": 1 },
+                  "comment":
+                    {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "description": "Непустой после trim для reject",
+                    },
+                },
+            },
+          "Step":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "request_id": { "$ref": "#/components/schemas/Id" },
+                  "step_order": { "type": "integer" },
+                  "approver_employee_id": { "$ref": "#/components/schemas/Id" },
+                  "approver_name": { "type": "string" },
+                  "status":
+                    { "enum": ["PENDING", "APPROVED", "REJECTED", "SKIPPED"] },
+                  "actionable": { "type": "boolean" },
+                  "decision_comment": { "type": ["string", "null"] },
+                  "decided_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                },
+            },
+          "History":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "old_status": { "type": ["string", "null"] },
+                  "new_status": { "type": "string" },
+                  "changed_by_name": { "type": "string" },
+                  "changed_at": { "type": "string", "format": "date-time" },
+                  "comment": { "type": ["string", "null"] },
+                },
+            },
+          "RequestSummary":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "destination_country":
+                    { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "destination_city":
+                    { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "purpose":
+                    { "type": "string", "minLength": 10, "maxLength": 1000 },
+                  "start_date": { "type": "string", "format": "date" },
+                  "end_date": { "type": "string", "format": "date" },
+                  "transport_type":
+                    { "enum": ["AIR", "RAIL", "CAR", "BUS", "OTHER"] },
+                  "accommodation_required": { "type": "boolean" },
+                  "currency": { "type": "string", "enum": ["RUB"] },
+                  "employee_comment": { "type": "string", "maxLength": 2000 },
+                  "version": { "type": "integer", "minimum": 1 },
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "number": { "type": "string" },
+                  "employee_id": { "$ref": "#/components/schemas/Id" },
+                  "employee_name": { "type": "string" },
+                  "status":
+                    {
+                      "enum":
+                        [
+                          "DRAFT",
+                          "SUBMITTED",
+                          "UNDER_REVIEW",
+                          "APPROVED",
+                          "REJECTED",
+                          "CANCELED",
+                        ],
+                    },
+                  "estimated_total": { "type": "string" },
+                  "created_at": { "type": "string", "format": "date-time" },
+                  "updated_at": { "type": "string", "format": "date-time" },
+                  "submitted_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                  "decided_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                },
+            },
+          "Request":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "destination_country":
+                    { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "destination_city":
+                    { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "purpose":
+                    { "type": "string", "minLength": 10, "maxLength": 1000 },
+                  "start_date": { "type": "string", "format": "date" },
+                  "end_date": { "type": "string", "format": "date" },
+                  "transport_type":
+                    { "enum": ["AIR", "RAIL", "CAR", "BUS", "OTHER"] },
+                  "accommodation_required": { "type": "boolean" },
+                  "currency": { "type": "string", "enum": ["RUB"] },
+                  "employee_comment": { "type": "string", "maxLength": 2000 },
+                  "expenses":
+                    {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": { "$ref": "#/components/schemas/Expense" },
+                    },
+                  "version": { "type": "integer", "minimum": 1 },
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "number": { "type": "string" },
+                  "employee_id": { "$ref": "#/components/schemas/Id" },
+                  "employee_name": { "type": "string" },
+                  "status":
+                    {
+                      "enum":
+                        [
+                          "DRAFT",
+                          "SUBMITTED",
+                          "UNDER_REVIEW",
+                          "APPROVED",
+                          "REJECTED",
+                          "CANCELED",
+                        ],
+                    },
+                  "estimated_total": { "type": "string" },
+                  "created_at": { "type": "string", "format": "date-time" },
+                  "updated_at": { "type": "string", "format": "date-time" },
+                  "submitted_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                  "decided_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                  "steps":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Step" },
+                    },
+                  "history":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/History" },
+                    },
+                },
+            },
+        },
+    },
+}
