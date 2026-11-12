@@ -46,4 +46,5 @@ jobs:
           retention-days: 7
       - name: Stop containers
         if: always()
-        run: docker compose --profile app down
+        run: |
+          if [ -f .env ]; then docker compose --profile app down; fi
