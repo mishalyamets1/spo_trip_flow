@@ -40,7 +40,9 @@ export function RequestList() {
           <p className="eyebrow">ВАШИ ПОЕЗДКИ</p>
           <h1>Мои заявки</h1>
           <p className="muted">
-            Планируйте поездки и отслеживайте согласование.
+            {user?.roles.includes("APPROVER")
+              ? "Здесь ваши личные поездки. Заявки других сотрудников находятся в разделе «Согласование»."
+              : "Планируйте поездки и отслеживайте согласование."}
           </p>
         </div>
         {user?.roles.includes("EMPLOYEE") && (

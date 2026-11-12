@@ -1,11 +1,12 @@
 # Docker Compose and the Node scripts read .env themselves.
 # Do not evaluate .env as Make syntax (quoted passwords are not Make values).
 
-.PHONY: help up down reset migrate migrate-down migrate-status provision check psql setup demo app dev test backup restore
+.PHONY: help up down reset migrate migrate-down migrate-status provision check psql setup demo admin app dev test backup restore
 
 help:
 	@echo "make setup          — БД, миграции и пароль роли приложения"
 	@echo "make demo           — учебные пользователи (нужен DEMO_PASSWORD)"
+	@echo "make admin          — первый администратор (ADMIN_PASSWORD или DEMO_PASSWORD)"
 	@echo "make app            — собрать и запустить всё приложение"
 	@echo "make dev            — frontend и backend локально"
 	@echo "make test           — проверки на отдельной временной БД"
@@ -42,6 +43,9 @@ setup: migrate provision
 
 demo:
 	@npm run demo -w @tripflow/api
+
+admin:
+	@npm run admin -w @tripflow/api
 
 app:
 	@docker compose --profile app up -d --build --wait

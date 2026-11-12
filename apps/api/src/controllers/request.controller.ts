@@ -4,6 +4,7 @@ import {
   requestSchema,
   versionSchema,
   requestFilterSchema,
+  cancellationSchema,
 } from "../validators/request.validation.js";
 import * as requests from "../services/request.service.js";
 
@@ -50,6 +51,18 @@ export const submit: RequestHandler = async (req, res) => {
       req.user,
       idSchema.parse(req.params.id),
       versionSchema.parse(req.body).version,
+    ),
+  );
+};
+
+export const cancel: RequestHandler = async (req, res) => {
+  const body = cancellationSchema.parse(req.body);
+  res.json(
+    await requests.cancelRequest(
+      req.user,
+      idSchema.parse(req.params.id),
+      body.version,
+      body.reason,
     ),
   );
 };

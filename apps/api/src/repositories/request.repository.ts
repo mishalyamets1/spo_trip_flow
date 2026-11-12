@@ -42,12 +42,16 @@ export async function listOwn(
   };
 }
 
-export async function findVisible(id: string, employeeId: string) {
+export async function findVisible(
+  id: string,
+  employeeId: string,
+  canApprove: boolean,
+) {
   return (
     await pool.query(
       `SELECT ${fields} ${joins} WHERE r.id=$1 AND
-    (r.employee_id=$2 OR EXISTS (SELECT 1 FROM approval_steps a WHERE a.request_id=r.id AND a.approver_employee_id=$2))`,
-      [id, employeeId],
+    (r.employee_id=$2 OR ($3::boolean AND EXISTS (SELECT 1 FROM approval_steps a WHERE a.request_id=r.id AND a.approver_employee_id=$2)))`,
+      [id, employeeId, canApprove],
     )
   ).rows[0];
 }
@@ -63,8 +67,7 @@ export async function listExpenses(id: string) {
 export async function listHistory(id: string) {
   return (
     await pool.query(
-      `SELECT h.*, e.full_name AS changed_by_name FROM request_status_history h
-      JOIN employees e ON e.id=h.changed_by_employee_id WHERE request_id=$1 ORDER BY changed_at,h.id`,
+      `SELECT h.*, h.changed_by_name_snapshot AS changed_by_name FROM request_status_history h WHERE request_id=$1 ORDER BY changed_at,h.id`,
       [id],
     )
   ).rows;
@@ -78,8 +81,8 @@ export async function addHistory(
   comment: string,
 ) {
   await client.query(
-    `INSERT INTO request_status_history(request_id,old_status,new_status,changed_by_employee_id,comment)
-    VALUES ($1,$2,$3,$4,$5)`,
+    `INSERT INTO request_status_history(request_id,old_status,new_status,changed_by_employee_id,comment,changed_by_name_snapshot)
+    SELECT $1,$2,$3,$4,$5,full_name FROM employees WHERE id=$4`,
     [id, oldStatus, newStatus, employeeId, comment],
   );
 }
@@ -224,5 +227,17 @@ export async function updateDecisionStatus(
     `UPDATE travel_requests SET status=$2::varchar,decided_at=CASE WHEN $2::varchar IN ('APPROVED','REJECTED') THEN now() ELSE NULL END,
       version=version+1,updated_at=now() WHERE id=$1`,
     [id, newStatus],
+  );
+}
+
+export async function markCanceled(
+  client: PoolClient,
+  id: string,
+  reason: string,
+) {
+  await client.query(
+    `UPDATE travel_requests SET status='CANCELED', submitted_at=COALESCE(submitted_at,now()), canceled_at=now(), cancellation_reason=$2,
+      updated_at=now(), version=version+1 WHERE id=$1`,
+    [id, reason],
   );
 }

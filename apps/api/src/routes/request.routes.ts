@@ -8,3 +8,4 @@ requestRoutes.get("/:id/history", requests.history);
 requestRoutes.patch("/:id", requests.update);
 requestRoutes.delete("/:id", requests.remove);
 requestRoutes.post("/:id/submit", requests.submit);
+requestRoutes.post("/:id/cancel", requests.cancel);

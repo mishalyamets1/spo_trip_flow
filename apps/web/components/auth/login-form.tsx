@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../providers/auth-provider";
 import { errorMessage } from "../../lib/api";
-import { safeReturnPath } from "../../lib/navigation";
+import { safeReturnPath, workspaceDestination } from "../../lib/navigation";
 import { ErrorAlert, Loading } from "../ui/feedback";
 import { LoginIntro } from "./login-intro";
 export function LoginForm() {
@@ -14,7 +14,8 @@ export function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    if (user && !checking) router.replace(destination);
+    if (user && !checking)
+      router.replace(workspaceDestination(destination, user.roles));
   }, [user, checking, destination, router]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

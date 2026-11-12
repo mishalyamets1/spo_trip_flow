@@ -4,10 +4,11 @@ import { ensure } from "../errors.js";
 import * as approvals from "../repositories/approval.repository.js";
 import * as requests from "../repositories/request.repository.js";
 import { getRequest } from "./request.service.js";
+import type { ApprovalFilters } from "../types/approval.js";
 
-export async function listApprovals(user: User) {
+export async function listApprovals(user: User, filter: ApprovalFilters) {
   ensure(user.roles.includes("APPROVER"), 403, "Нет роли согласующего");
-  return { items: await approvals.listPendingForApprover(user.employee_id) };
+  return approvals.listForApprover(user.employee_id, filter);
 }
 
 export async function decide(

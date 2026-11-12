@@ -1,8 +1,8 @@
 import { statuses } from "../../lib/constants";
-export function Badge({ status }: { status: string }) {
+export function Badge({ status, label }: { status: string; label?: string }) {
   return (
     <span className={`badge badge-${status.toLowerCase()}`}>
-      {statuses[status] || status}
+      {label || statuses[status] || status}
     </span>
   );
 }

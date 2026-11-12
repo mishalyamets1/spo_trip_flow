@@ -6,6 +6,7 @@ import * as health from "../controllers/health.controller.js";
 import { listExpenseCategories } from "../controllers/catalog.controller.js";
 import { requestRoutes } from "./request.routes.js";
 import { approvalRoutes } from "./approval.routes.js";
+import { adminRoutes } from "./admin.routes.js";
 
 export const apiRoutes = Router();
 apiRoutes.get("/health/live", health.live);
@@ -29,3 +30,4 @@ apiRoutes.post("/auth/logout", auth.logout);
 apiRoutes.get("/expense-categories", listExpenseCategories);
 apiRoutes.use("/requests", requestRoutes);
 apiRoutes.use("/approvals", approvalRoutes);
+apiRoutes.use("/admin", adminRoutes);

@@ -16,6 +16,7 @@ type AuthContextValue = {
   user: User | null;
   checking: boolean;
   error: string;
+  signedOut: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   invalidate: () => void;
@@ -26,10 +27,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
+  const [signedOut, setSignedOut] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const invalidate = useCallback(() => {
     setUser(null);
     setError("");
+    setSignedOut(false);
   }, []);
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
   useEffect(() => {
@@ -57,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const value = await authApi.login(email, password);
     setError("");
+    setSignedOut(false);
     setUser(value);
   }, []);
   const logout = useCallback(async () => {
@@ -65,11 +69,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
-    invalidate();
-  }, [invalidate]);
+    setUser(null);
+    setError("");
+    setSignedOut(true);
+  }, []);
   const value = useMemo(
-    () => ({ user, checking, error, login, logout, invalidate, retry }),
-    [user, checking, error, login, logout, invalidate, retry],
+    () => ({
+      user,
+      checking,
+      error,
+      signedOut,
+      login,
+      logout,
+      invalidate,
+      retry,
+    }),
+    [user, checking, error, signedOut, login, logout, invalidate, retry],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

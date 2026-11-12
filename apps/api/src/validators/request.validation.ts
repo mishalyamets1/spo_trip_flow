@@ -61,3 +61,7 @@ export const requestFilterSchema = z
 export const decisionSchema = versionSchema.extend({
   comment: z.string().trim().max(2000).default(""),
 });
+
+export const cancellationSchema = versionSchema.extend({
+  reason: z.string().trim().min(1, "Укажите причину отмены").max(2000),
+});

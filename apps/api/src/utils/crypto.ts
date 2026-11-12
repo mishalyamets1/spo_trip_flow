@@ -12,8 +12,15 @@ export async function hashPassword(password: string) {
   return `scrypt:${salt}:${key.toString("hex")}`;
 }
 export async function verifyPassword(password: string, encoded: string) {
-  const [scheme, salt, hex] = encoded.split(":");
-  if (scheme !== "scrypt" || !salt || !hex || hex.length !== 128) {
+  const [scheme, salt, hex, extra] = encoded.split(":");
+  if (
+    scheme !== "scrypt" ||
+    !salt ||
+    !/^[a-f0-9]{32}$/i.test(salt) ||
+    !hex ||
+    !/^[a-f0-9]{128}$/i.test(hex) ||
+    extra !== undefined
+  ) {
     await scrypt(password, "tripflow-invalid-user", 64);
     return false;
   }

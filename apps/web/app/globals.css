@@ -771,3 +771,59 @@ tr:last-child td:first-child {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.view-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 18px;
+  flex-wrap: wrap;
+}
+.view-tabs a {
+  border: 1px solid var(--line);
+  padding: 10px 16px;
+  border-radius: 7px;
+  background: var(--surface);
+}
+.view-tabs .tab-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.decision-cell {
+  min-width: 180px;
+  max-width: 290px;
+}
+.decision-comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-checkboxes,
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.admin-checkboxes label,
+.admin-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+.admin-check {
+  margin-top: 1rem;
+}
+.admin-checkboxes input,
+.admin-check input {
+  width: auto;
+}
+.admin-danger {
+  border-color: #d8b2b2;
+  margin-top: 1.5rem;
+}
+.admin-route-steps li {
+  margin: 1rem 0;
+}

@@ -45,7 +45,24 @@ export const errorHandler: ErrorRequestHandler = (
     return;
   }
   if (code === "23505") {
-    res.status(409).json({ error: { message: "Запись уже существует" } });
+    const constraint = (error as { constraint?: string }).constraint;
+    res.status(409).json({
+      error: {
+        message:
+          constraint === "idx_approval_routes_active_department"
+            ? "В подразделении уже есть активный маршрут. Измените или отключите его"
+            : "Запись уже существует: проверьте почту и табельный номер",
+      },
+    });
+    return;
+  }
+  if (code === "40P01" || code === "40001") {
+    res.status(409).json({
+      error: {
+        message:
+          "Данные одновременно изменяются. Обновите страницу и повторите действие",
+      },
+    });
     return;
   }
   const unavailable =

@@ -1,9 +1,15 @@
 import type { RequestHandler } from "express";
 import { decisionSchema, idSchema } from "../validators/request.validation.js";
 import * as approvals from "../services/approval.service.js";
+import { approvalFilterSchema } from "../validators/approval.validation.js";
 
 export const list: RequestHandler = async (req, res) => {
-  res.json(await approvals.listApprovals(req.user));
+  res.json(
+    await approvals.listApprovals(
+      req.user,
+      approvalFilterSchema.parse(req.query),
+    ),
+  );
 };
 function decision(approved: boolean): RequestHandler {
   return async (req, res) => {

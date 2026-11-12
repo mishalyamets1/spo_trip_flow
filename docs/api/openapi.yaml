@@ -3,10 +3,10 @@
   "info":
     {
       "title": "TripFlow API",
-      "version": "0.2.0",
-      "description": "Учебная версия этапов II–III. Все изменяющие запросы требуют Content-Type application/json и Origin, равный APP_ORIGIN. В режиме разработки также разрешены localhost и 127.0.0.1 на портах 3000/3001. Сессия в HttpOnly cookie на 8 часов; SameSite=Lax, Secure при COOKIE_SECURE=true. Идентификаторы BIGINT и суммы NUMERIC передаются строками. Ошибочный JSON: 400, слишком большой запрос: 413, неверный Content-Type: 415. Чужие заявки скрыты ответом 404. ADMIN-интерфейс и отмена заявок пока не реализованы.",
+      "version": "0.4.0",
+      "description": "Учебная версия с администрированием. Все изменяющие запросы требуют Content-Type application/json и Origin из разрешённого списка APP_ORIGIN. Для локального APP_ORIGIN разрешены localhost и 127.0.0.1 на настроенном порту, также в Docker. В режиме разработки дополнительно разрешены оба имени на портах 3000/3001. Сессия в HttpOnly cookie на 8 часов; SameSite=Lax, Secure при COOKIE_SECURE=true. Идентификаторы BIGINT и суммы NUMERIC передаются строками. Ошибочный JSON: 400, слишком большой запрос: 413, неверный Content-Type: 415. Чужие заявки скрыты ответом 404. Отмена заявки доступна автору до первого решения. Администрирование /admin/* доступно только роли ADMIN; действия записываются в журнал.",
     },
-  "servers": [{ "url": "http://localhost:3000/api" }],
+  "servers": [{ "url": "/api" }],
   "security": [{ "session": [] }],
   "paths":
     {
@@ -97,9 +97,9 @@
                             },
                         },
                     },
-                  "503":
+                  "429":
                     {
-                      "description": "База данных недоступна",
+                      "description": "Слишком много попыток",
                       "content":
                         {
                           "application/json":
@@ -109,9 +109,9 @@
                             },
                         },
                     },
-                  "429":
+                  "503":
                     {
-                      "description": "Слишком много попыток",
+                      "description": "База данных недоступна",
                       "content":
                         {
                           "application/json":
@@ -1421,8 +1421,8 @@
         {
           "get":
             {
-              "summary": "Очередь текущих этапов",
-              "description": "FR-09, FR-11. Роль APPROVER. Только свой PENDING с утверждёнными предшествующими этапами. До 100 записей, сначала самые ранние.",
+              "summary": "Текущие этапы или обработанные мной заявки",
+              "description": "FR-09, FR-14. APPROVER видит только свои назначения. view=pending (по умолчанию): текущий PENDING после утверждения предыдущих этапов, порядок submitted_at/id/step_order. view=processed: только свои APPROVED/REJECTED, порядок времени решения DESC и id этапа DESC; status — текущее состояние всей заявки, approval_status — собственное решение. SKIPPED не является решением. По 20 строк на страницу. from/to фильтруют даты поездки, как в списке сотрудника.",
               "responses":
                 {
                   "200":
@@ -1435,6 +1435,14 @@
                               "schema":
                                 {
                                   "type": "object",
+                                  "required":
+                                    [
+                                      "items",
+                                      "total",
+                                      "page",
+                                      "page_size",
+                                      "view",
+                                    ],
                                   "properties":
                                     {
                                       "items":
@@ -1442,27 +1450,37 @@
                                           "type": "array",
                                           "items":
                                             {
-                                              "allOf":
-                                                [
-                                                  {
-                                                    "$ref": "#/components/schemas/RequestSummary",
-                                                  },
-                                                  {
-                                                    "type": "object",
-                                                    "properties":
-                                                      {
-                                                        "approval_id":
-                                                          {
-                                                            "$ref": "#/components/schemas/Id",
-                                                          },
-                                                        "step_order":
-                                                          { "type": "integer" },
-                                                      },
-                                                  },
-                                                ],
+                                              "$ref": "#/components/schemas/ApprovalItem",
                                             },
                                         },
+                                      "total":
+                                        { "type": "integer", "minimum": 0 },
+                                      "page": { "type": "integer" },
+                                      "page_size":
+                                        { "type": "integer", "const": 20 },
+                                      "view":
+                                        { "enum": ["pending", "processed"] },
                                     },
+                                },
+                              "example":
+                                {
+                                  "items":
+                                    [
+                                      {
+                                        "id": "12",
+                                        "number": "TR-2026-000012",
+                                        "status": "UNDER_REVIEW",
+                                        "approval_id": "21",
+                                        "step_order": 1,
+                                        "approval_status": "APPROVED",
+                                        "approval_decided_at": "2026-11-12T10:00:00Z",
+                                        "approval_comment": "Согласовано",
+                                      },
+                                    ],
+                                  "total": 1,
+                                  "page": 1,
+                                  "page_size": 20,
+                                  "view": "processed",
                                 },
                             },
                         },
@@ -1540,6 +1558,47 @@
                         },
                     },
                 },
+              "parameters":
+                [
+                  {
+                    "name": "view",
+                    "in": "query",
+                    "schema":
+                      {
+                        "enum": ["pending", "processed"],
+                        "default": "pending",
+                      },
+                  },
+                  {
+                    "name": "decision",
+                    "in": "query",
+                    "description": "Только для processed",
+                    "schema": { "enum": ["APPROVED", "REJECTED"] },
+                  },
+                  {
+                    "name": "from",
+                    "in": "query",
+                    "description": "start_date >= from",
+                    "schema": { "type": "string", "format": "date" },
+                  },
+                  {
+                    "name": "to",
+                    "in": "query",
+                    "description": "end_date <= to",
+                    "schema": { "type": "string", "format": "date" },
+                  },
+                  {
+                    "name": "page",
+                    "in": "query",
+                    "schema":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000,
+                        "default": 1,
+                      },
+                  },
+                ],
             },
         },
       "/approvals/{id}/approve":
@@ -2049,6 +2108,1854 @@
               "security": [],
             },
         },
+      "/requests/{id}/cancel":
+        {
+          "post":
+            {
+              "summary": "Отменить свою отправленную заявку",
+              "description": "FR-13. Только EMPLOYEE-владелец; SUBMITTED и ни одного решения APPROVED/REJECTED. Актуальная version и причина обязательны. Заявка, пропуск этапов и история изменяются транзакционно. После отмены повторная отправка запрещена. Гонка с решением возвращает 409 проигравшему запросу.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/Cancellation" },
+                          "example":
+                            { "version": 3, "reason": "Встреча перенесена" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                              "example":
+                                {
+                                  "id": "12",
+                                  "number": "TR-2026-000012",
+                                  "employee_id": "1",
+                                  "status": "CANCELED",
+                                  "version": 4,
+                                  "canceled_at": "2026-11-12T10:00:00Z",
+                                  "cancellation_reason": "Встреча перенесена",
+                                  "submitted_at": "2026-11-12T09:00:00Z",
+                                  "decided_at": null,
+                                  "can_cancel": false,
+                                  "expenses": [],
+                                  "steps": [],
+                                  "history": [],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Ошибка входных данных",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет действующей сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет доступа или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Ресурс не найден или недоступен",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии или состояния",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "База данных недоступна",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/metadata":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Подразделения и активные согласующие",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters": [],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/AdminMetadata",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/employees":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Список всех сотрудников",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "q",
+                    "in": "query",
+                    "schema": { "type": "string", "maxLength": 200 },
+                  },
+                  {
+                    "name": "department_id",
+                    "in": "query",
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                  {
+                    "name": "active",
+                    "in": "query",
+                    "schema": { "enum": ["true", "false"] },
+                  },
+                  {
+                    "name": "page",
+                    "in": "query",
+                    "schema":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000,
+                        "default": 1,
+                      },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/AdminEmployee",
+                                            },
+                                        },
+                                      "total": { "type": "integer" },
+                                      "page": { "type": "integer" },
+                                      "page_size": { "const": 20 },
+                                    },
+                                  "required":
+                                    ["items", "total", "page", "page_size"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "post":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Создать сотрудника и учётную запись",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters": [],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/AdminEmployeeCreate",
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "201":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/AdminEmployee",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/employees/{id}":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Карточка сотрудника и последствия удаления",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/AdminEmployeePreview",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "patch":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Изменить сотрудника, роли и активность",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/AdminEmployeeUpdate",
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/AdminEmployee",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "delete":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Удалить сотрудника и все его заявки",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/AdminDeleteEmployee",
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "deleted_request_count":
+                                        { "type": "integer" },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/requests":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Все заявки с поиском и фильтрами",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "q",
+                    "in": "query",
+                    "schema": { "type": "string", "maxLength": 200 },
+                  },
+                  {
+                    "name": "employee_id",
+                    "in": "query",
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                  {
+                    "name": "department_id",
+                    "in": "query",
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                  {
+                    "name": "status",
+                    "in": "query",
+                    "schema":
+                      {
+                        "enum":
+                          [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "UNDER_REVIEW",
+                            "APPROVED",
+                            "REJECTED",
+                            "CANCELED",
+                          ],
+                      },
+                  },
+                  {
+                    "name": "from",
+                    "in": "query",
+                    "schema": { "type": "string", "format": "date" },
+                  },
+                  {
+                    "name": "to",
+                    "in": "query",
+                    "schema": { "type": "string", "format": "date" },
+                  },
+                  {
+                    "name": "page",
+                    "in": "query",
+                    "schema":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000,
+                        "default": 1,
+                      },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/RequestSummary",
+                                            },
+                                        },
+                                      "total": { "type": "integer" },
+                                      "page": { "type": "integer" },
+                                      "page_size": { "const": 20 },
+                                    },
+                                  "required":
+                                    ["items", "total", "page", "page_size"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/requests/{id}":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Любая заявка со сметой, этапами и историей",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/requests/{id}/cancel":
+        {
+          "post":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Отменить незавершённую заявку",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/Cancellation" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/requests/{id}/reassign":
+        {
+          "post":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Заменить согласующего первого ожидающего этапа",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "allOf":
+                                [
+                                  {
+                                    "$ref": "#/components/schemas/Cancellation",
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties":
+                                      {
+                                        "approver_employee_id":
+                                          { "$ref": "#/components/schemas/Id" },
+                                      },
+                                    "required": ["approver_employee_id"],
+                                  },
+                                ],
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Request" },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/routes":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Список маршрутов",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters": [],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/AdminRoute",
+                                            },
+                                        },
+                                    },
+                                  "required": ["items"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "post":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Создать маршрут",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters": [],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/AdminRouteInput" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "201":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/AdminRoute",
+                                            },
+                                        },
+                                    },
+                                  "required": ["items"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/routes/{id}":
+        {
+          "patch":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Настроить маршрут для новых отправок",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/AdminRouteInput" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/AdminRoute",
+                                            },
+                                        },
+                                    },
+                                  "required": ["items"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/audit":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Журнал действий администратора",
+              "description": "Требуется действующая роль ADMIN. Права проверяются на сервере.",
+              "parameters":
+                [
+                  {
+                    "name": "page",
+                    "in": "query",
+                    "schema":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000,
+                        "default": 1,
+                      },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/AdminAudit",
+                                            },
+                                        },
+                                      "total": { "type": "integer" },
+                                      "page": { "type": "integer" },
+                                      "page_size": { "const": 20 },
+                                    },
+                                  "required":
+                                    ["items", "total", "page", "page_size"],
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Нет роли ADMIN или неверный Origin",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Объект не найден",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Конфликт версии, состояния, назначения или уникальности",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "415":
+                    {
+                      "description": "Требуется application/json",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     },
   "components":
     {
@@ -2204,7 +4111,15 @@
                   "id": { "$ref": "#/components/schemas/Id" },
                   "request_id": { "$ref": "#/components/schemas/Id" },
                   "step_order": { "type": "integer" },
-                  "approver_employee_id": { "$ref": "#/components/schemas/Id" },
+                  "approver_employee_id":
+                    {
+                      "anyOf":
+                        [
+                          { "$ref": "#/components/schemas/Id" },
+                          { "type": "null" },
+                        ],
+                      "description": "NULL после удаления сотрудника; имя и решение сохраняются в снимке",
+                    },
                   "approver_name": { "type": "string" },
                   "status":
                     { "enum": ["PENDING", "APPROVED", "REJECTED", "SKIPPED"] },
@@ -2269,6 +4184,9 @@
                     { "type": ["string", "null"], "format": "date-time" },
                   "decided_at":
                     { "type": ["string", "null"], "format": "date-time" },
+                  "canceled_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                  "cancellation_reason": { "type": ["string", "null"] },
                 },
             },
           "Request":
@@ -2329,6 +4247,326 @@
                       "type": "array",
                       "items": { "$ref": "#/components/schemas/History" },
                     },
+                  "canceled_at":
+                    { "type": ["string", "null"], "format": "date-time" },
+                  "cancellation_reason": { "type": ["string", "null"] },
+                  "can_cancel":
+                    {
+                      "type": "boolean",
+                      "description": "Может ли текущий пользователь отменить заявку; сервер повторно проверяет правило при отмене",
+                    },
+                },
+            },
+          "Cancellation":
+            {
+              "type": "object",
+              "required": ["version", "reason"],
+              "properties":
+                {
+                  "version": { "type": "integer", "minimum": 1 },
+                  "reason":
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000,
+                      "pattern": "\\S",
+                      "description": "Обязательная причина после удаления пробелов по краям",
+                    },
+                },
+            },
+          "ApprovalItem":
+            {
+              "allOf":
+                [
+                  { "$ref": "#/components/schemas/RequestSummary" },
+                  {
+                    "type": "object",
+                    "properties":
+                      {
+                        "approval_id": { "$ref": "#/components/schemas/Id" },
+                        "step_order": { "type": "integer" },
+                        "approval_status":
+                          { "enum": ["PENDING", "APPROVED", "REJECTED"] },
+                        "approval_decided_at":
+                          { "type": ["string", "null"], "format": "date-time" },
+                        "approval_comment": { "type": ["string", "null"] },
+                      },
+                  },
+                ],
+            },
+          "AdminEmployeeCreate":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "full_name":
+                    { "type": "string", "minLength": 5, "maxLength": 200 },
+                  "email":
+                    { "type": "string", "format": "email", "maxLength": 254 },
+                  "employee_number":
+                    { "type": "string", "minLength": 1, "maxLength": 30 },
+                  "position":
+                    { "type": "string", "minLength": 1, "maxLength": 150 },
+                  "department_id": { "$ref": "#/components/schemas/Id" },
+                  "phone": { "type": "string", "maxLength": 30, "default": "" },
+                  "hire_date": { "type": "string", "format": "date" },
+                  "roles":
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 3,
+                      "uniqueItems": true,
+                      "items": { "enum": ["EMPLOYEE", "APPROVER", "ADMIN"] },
+                    },
+                  "is_active": { "type": "boolean" },
+                  "password":
+                    {
+                      "type": "string",
+                      "minLength": 12,
+                      "maxLength": 128,
+                      "writeOnly": true,
+                    },
+                },
+              "required":
+                [
+                  "full_name",
+                  "email",
+                  "employee_number",
+                  "position",
+                  "department_id",
+                  "hire_date",
+                  "roles",
+                  "is_active",
+                  "password",
+                ],
+            },
+          "AdminEmployeeUpdate":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "full_name":
+                    { "type": "string", "minLength": 5, "maxLength": 200 },
+                  "email":
+                    { "type": "string", "format": "email", "maxLength": 254 },
+                  "employee_number":
+                    { "type": "string", "minLength": 1, "maxLength": 30 },
+                  "position":
+                    { "type": "string", "minLength": 1, "maxLength": 150 },
+                  "department_id": { "$ref": "#/components/schemas/Id" },
+                  "phone": { "type": "string", "maxLength": 30, "default": "" },
+                  "hire_date": { "type": "string", "format": "date" },
+                  "roles":
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 3,
+                      "uniqueItems": true,
+                      "items": { "enum": ["EMPLOYEE", "APPROVER", "ADMIN"] },
+                    },
+                  "is_active": { "type": "boolean" },
+                  "version": { "type": "integer", "minimum": 1 },
+                },
+              "required":
+                [
+                  "full_name",
+                  "email",
+                  "employee_number",
+                  "position",
+                  "department_id",
+                  "hire_date",
+                  "roles",
+                  "is_active",
+                  "version",
+                ],
+            },
+          "AdminEmployee":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "full_name":
+                    { "type": "string", "minLength": 5, "maxLength": 200 },
+                  "email":
+                    { "type": "string", "format": "email", "maxLength": 254 },
+                  "employee_number":
+                    { "type": "string", "minLength": 1, "maxLength": 30 },
+                  "position":
+                    { "type": "string", "minLength": 1, "maxLength": 150 },
+                  "department_id": { "$ref": "#/components/schemas/Id" },
+                  "phone": { "type": ["string", "null"] },
+                  "hire_date": { "type": "string", "format": "date" },
+                  "roles":
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 3,
+                      "uniqueItems": true,
+                      "items": { "enum": ["EMPLOYEE", "APPROVER", "ADMIN"] },
+                    },
+                  "is_active": { "type": "boolean" },
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "user_id": { "$ref": "#/components/schemas/Id" },
+                  "version": { "type": "integer", "minimum": 1 },
+                  "department_name": { "type": "string" },
+                },
+              "required":
+                [
+                  "full_name",
+                  "email",
+                  "employee_number",
+                  "position",
+                  "department_id",
+                  "hire_date",
+                  "roles",
+                  "is_active",
+                  "id",
+                  "user_id",
+                  "version",
+                ],
+            },
+          "AdminEmployeePreview":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "employee": { "$ref": "#/components/schemas/AdminEmployee" },
+                  "request_count": { "type": "integer" },
+                  "pending_count": { "type": "integer" },
+                  "route_count": { "type": "integer" },
+                },
+              "required":
+                ["employee", "request_count", "pending_count", "route_count"],
+            },
+          "AdminDeleteEmployee":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "version": { "type": "integer", "minimum": 1 },
+                  "reason":
+                    { "type": "string", "minLength": 1, "maxLength": 2000 },
+                  "expected_request_count": { "type": "integer", "minimum": 0 },
+                  "replacement_employee_id":
+                    { "$ref": "#/components/schemas/Id" },
+                },
+              "required": ["version", "reason", "expected_request_count"],
+              "description": "Удаляет сотрудника, аккаунт и все его заявки со сметами, поездками, этапами и историей. При ожидающих назначениях в чужих заявках или участии в шаблонах требуется активная замена, не являющаяся автором/другим участником затронутой заявки или участником того же шаблона. Чужие решения и имена сохраняются. Свою учётную запись администратора удалить нельзя. 409 при изменившемся числе заявок.",
+            },
+          "AdminRouteInput":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "department_id": { "$ref": "#/components/schemas/Id" },
+                  "name":
+                    { "type": "string", "minLength": 1, "maxLength": 150 },
+                  "is_active": { "type": "boolean" },
+                  "version": { "type": "integer", "minimum": 0 },
+                  "approver_ids":
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "uniqueItems": true,
+                      "items": { "$ref": "#/components/schemas/Id" },
+                    },
+                },
+              "required":
+                [
+                  "department_id",
+                  "name",
+                  "is_active",
+                  "version",
+                  "approver_ids",
+                ],
+              "description": "Новый маршрут: version=0; изменение: текущая версия. Один активный маршрут на подразделение. Отправленные заявки не меняются.",
+            },
+          "AdminRoute":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "department_id": { "$ref": "#/components/schemas/Id" },
+                  "department_name": { "type": "string" },
+                  "name": { "type": "string" },
+                  "is_active": { "type": "boolean" },
+                  "version": { "type": "integer", "minimum": 1 },
+                  "steps":
+                    {
+                      "type": "array",
+                      "items":
+                        {
+                          "type": "object",
+                          "properties":
+                            {
+                              "employee_id":
+                                { "$ref": "#/components/schemas/Id" },
+                              "full_name": { "type": "string" },
+                              "step_order": { "type": "integer" },
+                            },
+                        },
+                    },
+                },
+            },
+          "AdminMetadata":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "departments":
+                    {
+                      "type": "array",
+                      "items":
+                        {
+                          "type": "object",
+                          "properties":
+                            {
+                              "id": { "$ref": "#/components/schemas/Id" },
+                              "name": { "type": "string" },
+                            },
+                        },
+                    },
+                  "approvers":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AdminEmployee" },
+                    },
+                },
+            },
+          "AdminAudit":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "$ref": "#/components/schemas/Id" },
+                  "actor_user_id":
+                    {
+                      "anyOf":
+                        [
+                          { "$ref": "#/components/schemas/Id" },
+                          { "type": "null" },
+                        ],
+                    },
+                  "actor_name": { "type": "string" },
+                  "action":
+                    {
+                      "enum":
+                        [
+                          "employee.create",
+                          "employee.update",
+                          "employee.delete",
+                          "request.cancel",
+                          "request.reassign",
+                          "route.save",
+                        ],
+                    },
+                  "entity_type": { "type": "string" },
+                  "entity_id": { "type": "string" },
+                  "reason": { "type": "string" },
+                  "details": { "type": "object" },
+                  "created_at": { "type": "string", "format": "date-time" },
                 },
             },
         },

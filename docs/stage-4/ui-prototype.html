@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TripFlow — макеты IV этапа</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: #1e2b38;
+        background: #f4f6f8;
+        font:
+          16px/1.55 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1060px;
+        margin: auto;
+        padding: 40px 24px;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+      }
+      h1 {
+        font-size: 36px;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      p {
+        max-width: 76ch;
+      }
+      .muted {
+        color: #626e7b;
+      }
+      .screen {
+        border: 1px solid #dce2e6;
+        border-radius: 18px;
+        background: white;
+        margin: 30px 0;
+        padding: 28px;
+      }
+      .tabs,
+      .filters,
+      .actions,
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+      }
+      .tabs {
+        border-bottom: 1px solid #dce2e6;
+        padding-bottom: 14px;
+      }
+      .tab {
+        padding: 9px 15px;
+        border-radius: 8px;
+      }
+      .active,
+      .badge {
+        color: #285d50;
+        background: #e6f1ec;
+      }
+      .filters {
+        padding: 18px 0;
+      }
+      .field {
+        display: grid;
+        gap: 5px;
+      }
+      .input {
+        color: #626e7b;
+        border: 1px solid #ccd4da;
+        border-radius: 8px;
+        min-width: 150px;
+        padding: 9px 12px;
+      }
+      .row {
+        justify-content: space-between;
+        border-top: 1px solid #e0e5e9;
+        padding: 18px 0;
+      }
+      .row p {
+        margin: 0;
+      }
+      .badge {
+        display: inline-block;
+        border-radius: 6px;
+        padding: 4px 9px;
+        font-size: 14px;
+      }
+      .review {
+        color: #8c5a14;
+        background: #fff2dc;
+      }
+      .button {
+        display: inline-block;
+        border: 1px solid #ccd4da;
+        border-radius: 8px;
+        padding: 9px 15px;
+      }
+      .primary {
+        color: white;
+        background: #285d50;
+        border-color: #285d50;
+      }
+      .danger {
+        color: white;
+        background: #a13b3b;
+        border-color: #a13b3b;
+      }
+      .textarea {
+        border: 1px solid #ccd4da;
+        border-radius: 8px;
+        padding: 14px;
+        min-height: 95px;
+        margin: 8px 0 18px;
+      }
+      .note {
+        border-left: 3px solid #285d50;
+        padding-left: 15px;
+      }
+      a {
+        color: #285d50;
+      }
+      small {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="muted">TripFlow / Практическая работа №16 / 12 ноября 2026</p>
+      <h1>Очередь, свои решения и отмена</h1>
+      <p>
+        Статические макеты с вымышленными данными. Действия здесь показаны
+        схематично; рабочий прототип находится в приложении. Связи, состояния и
+        проверки описаны в <a href="report.md">отчёте</a>.
+      </p>
+      <nav aria-label="Макеты">
+        <a href="#pending">Ожидающие</a> ·
+        <a href="#processed">Обработанные</a> · <a href="#cancel">Отмена</a>
+      </nav>
+      <section class="screen" id="pending" aria-labelledby="pending-title">
+        <h2 id="pending-title">1. Ожидают решения</h2>
+        <div class="tabs">
+          <span class="tab active">Ожидают решения</span
+          ><span class="tab">Обработанные мной</span>
+        </div>
+        <p class="muted">
+          Показываем только текущие этапы. Заявка появится у следующего
+          согласующего после вашего одобрения.
+        </p>
+        <div class="filters">
+          <div class="field">
+            Начало поездки от<span class="input">дд.мм.гггг</span>
+          </div>
+          <div class="field">
+            Окончание до<span class="input">дд.мм.гггг</span>
+          </div>
+          <span class="button">Применить</span>
+        </div>
+        <div class="row">
+          <p>
+            <strong>Тула</strong
+            ><small class="muted">TR-DEMO-01 · Сотрудник А.</small>
+          </p>
+          <span>9 000,25 ₽</span
+          ><span class="badge review">На согласовании</span
+          ><span class="button">Открыть →</span>
+        </div>
+        <p class="note">
+          Критерий: назначен текущему пользователю, этап PENDING,
+          предшественники APPROVED. Будущий этап виден в карточке, но не в этой
+          очереди.
+        </p>
+      </section>
+      <section class="screen" id="processed" aria-labelledby="processed-title">
+        <h2 id="processed-title">2. Обработанные мной</h2>
+        <div class="tabs">
+          <span class="tab">Ожидают решения</span
+          ><span class="tab active">Обработанные мной</span>
+        </div>
+        <p class="muted">
+          Здесь сохраняются ваши решения, даже если заявка уже перешла к
+          следующему согласующему.
+        </p>
+        <div class="filters">
+          <div class="field">
+            Моё решение<span class="input">Все решения ▾</span>
+          </div>
+          <div class="field">
+            Начало поездки от<span class="input">дд.мм.гггг</span>
+          </div>
+          <span class="button">Применить</span>
+        </div>
+        <div class="row">
+          <p>
+            <strong>Тула</strong
+            ><small class="muted">TR-DEMO-01 · Сотрудник А.</small>
+          </p>
+          <p>
+            Общий статус<br /><span class="badge review">На согласовании</span>
+          </p>
+          <p>
+            Моё решение<br /><span class="badge">Согласовано</span
+            ><small class="muted">12.11.2026 · Поездка обоснована</small>
+          </p>
+          <span class="button">Открыть →</span>
+        </div>
+        <p class="note">
+          Решение менеджера сохраняется после передачи финансисту. Ссылка
+          возврата из карточки сохраняет вкладку, фильтры и страницу.
+        </p>
+      </section>
+      <section class="screen" id="cancel" aria-labelledby="cancel-title">
+        <h2 id="cancel-title">3. Отмена отправленной заявки</h2>
+        <p>
+          <span class="badge review">Отправлена</span> · Два ожидающих этапа ·
+          Решений ещё нет
+        </p>
+        <h3>Отмена заявки</h3>
+        <p class="muted">
+          Можно отменить до первого решения согласующего. После отмены отправить
+          эту заявку повторно нельзя.
+        </p>
+        <div>Причина отмены</div>
+        <div class="textarea">Рабочая встреча перенесена</div>
+        <div class="actions">
+          <span class="button danger">Подтвердить отмену</span
+          ><span class="button">Вернуться без отмены</span>
+        </div>
+        <p class="note">
+          Без причины подтверждение недоступно. После успеха: «Отменена», время,
+          причина, этапы «Пропущен». После первого решения действие недоступно;
+          сервер повторяет проверку независимо от UI.
+        </p>
+      </section>
+      <p class="muted">
+        Пустой список сопровождается пояснением; загрузка и ошибки — отдельными
+        состояниями рабочего интерфейса. Макеты не отправляют запросы и не
+        содержат учётных данных.
+      </p>
+    </main>
+  </body>
+</html>

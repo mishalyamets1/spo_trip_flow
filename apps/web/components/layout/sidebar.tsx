@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "../../providers/auth-provider";
 import { errorMessage } from "../../lib/api";
+import { workspaceHome } from "../../lib/navigation";
 import { ErrorAlert } from "../ui/feedback";
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -26,25 +27,36 @@ export function Sidebar() {
   }
   return (
     <aside className="sidebar">
-      <Link className="brand" href="/requests">
+      <Link className="brand" href={workspaceHome(user.roles)}>
         TripFlow<span className="brand-dot">.</span>
       </Link>
       <p className="workspace-label">РАБОЧЕЕ ПРОСТРАНСТВО</p>
       <nav aria-label="Главная навигация">
-        <Link
-          href="/requests"
-          className={pathname.startsWith("/requests") ? "nav-active" : ""}
-          aria-current={pathname.startsWith("/requests") ? "page" : undefined}
-        >
-          Мои заявки
-        </Link>
+        {user.roles.includes("EMPLOYEE") && (
+          <Link
+            href="/requests"
+            className={pathname.startsWith("/requests") ? "nav-active" : ""}
+            aria-current={pathname.startsWith("/requests") ? "page" : undefined}
+          >
+            Мои заявки
+          </Link>
+        )}
         {user.roles.includes("APPROVER") && (
           <Link
             href="/approvals"
             className={pathname === "/approvals" ? "nav-active" : ""}
             aria-current={pathname === "/approvals" ? "page" : undefined}
           >
-            На согласовании
+            Согласование
+          </Link>
+        )}
+        {user.roles.includes("ADMIN") && (
+          <Link
+            href="/admin/employees"
+            className={pathname.startsWith("/admin") ? "nav-active" : ""}
+            aria-current={pathname.startsWith("/admin") ? "page" : undefined}
+          >
+            Администрирование
           </Link>
         )}
       </nav>
@@ -52,7 +64,13 @@ export function Sidebar() {
         <div className="avatar">{user.full_name.slice(0, 1)}</div>
         <strong>{user.full_name}</strong>
         <span className="muted">
-          {user.roles.includes("APPROVER") ? "Согласующий" : "Сотрудник"}
+          {[
+            user.roles.includes("ADMIN") && "Администратор",
+            user.roles.includes("EMPLOYEE") && "Сотрудник",
+            user.roles.includes("APPROVER") && "Согласующий",
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Пользователь"}
         </span>
         <button className="text-button" disabled={busy} onClick={exit}>
           Выйти из системы

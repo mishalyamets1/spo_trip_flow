@@ -13,4 +13,6 @@ export const requestsApi = {
     api<void>(path(id), "DELETE", { version }),
   submit: (id: string, version: number) =>
     api<TravelRequest>(`${path(id)}/submit`, "POST", { version }),
+  cancel: (id: string, version: number, reason: string) =>
+    api<TravelRequest>(`${path(id)}/cancel`, "POST", { version, reason }),
 };

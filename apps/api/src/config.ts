@@ -12,9 +12,20 @@ export const config = {
   secureCookie: process.env.COOKIE_SECURE === "true",
   databaseUrl: process.env.PGHOST ? undefined : process.env.DATABASE_URL,
 };
-// Next.js uses 3001 when Docker already occupies 3000. Production stays strict.
+// Local Docker deployments support both loopback names on the configured port.
+const appOrigin = new URL(config.origin);
+const localOrigins = ["localhost", "127.0.0.1"].includes(appOrigin.hostname)
+  ? ["localhost", "127.0.0.1"].map((hostname) => {
+      const origin = new URL(appOrigin);
+      origin.hostname = hostname;
+      return origin.origin;
+    })
+  : [];
+
+// Next.js uses 3001 when Docker already occupies 3000.
 export const allowedOrigins = new Set([
   config.origin,
+  ...localOrigins,
   ...(process.env.NODE_ENV !== "production"
     ? [
         "http://localhost:3000",

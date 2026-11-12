@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { runStage4Checks } from "./helpers/stage4.js";
+import { runAdminChecks } from "./helpers/admin.js";
 
 test(
   "API и PostgreSQL: полный цикл и ограничения",
@@ -425,5 +427,7 @@ test(
         401,
       );
     });
+    await runAdminChecks({ t, call, pool, input, password });
+    await runStage4Checks({ t, call, pool, base, input, password });
   },
 );

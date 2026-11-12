@@ -15,14 +15,23 @@ export async function listRequests(
 }
 
 export async function getRequest(user: User, id: string) {
-  const request = await requests.findVisible(id, user.employee_id);
+  const request = await requests.findVisible(
+    id,
+    user.employee_id,
+    user.roles.includes("APPROVER"),
+  );
   ensure(request, 404, "Заявка не найдена");
   const [expenses, steps, history] = await Promise.all([
     requests.listExpenses(id),
     approvals.listSteps(id),
     requests.listHistory(id),
   ]);
-  return { ...request, expenses, steps, history };
+  const canCancel =
+    user.roles.includes("EMPLOYEE") &&
+    request.employee_id === user.employee_id &&
+    request.status === "SUBMITTED" &&
+    !steps.some((step) => ["APPROVED", "REJECTED"].includes(step.status));
+  return { ...request, expenses, steps, history, can_cancel: canCancel };
 }
 
 async function lockOwn(
@@ -145,6 +154,55 @@ export async function submitRequest(user: User, id: string, version: number) {
       "SUBMITTED",
       user.employee_id,
       "Заявка отправлена на согласование",
+    );
+  });
+  return getRequest(user, id);
+}
+
+export async function cancelRequest(
+  user: User,
+  id: string,
+  version: number,
+  reason: string,
+) {
+  ensure(user.roles.includes("EMPLOYEE"), 403, "Отмена доступна сотрудникам");
+  const comment = reason.trim();
+  ensure(
+    comment.length > 0 && comment.length <= 2000,
+    400,
+    "Укажите причину отмены длиной до 2000 символов",
+  );
+  await transaction(async (client) => {
+    const request = await requests.findOwnForUpdate(
+      client,
+      id,
+      user.employee_id,
+    );
+    ensure(request, 404, "Заявка не найдена");
+    ensure(
+      request.version === version,
+      409,
+      "Заявка уже изменена. Обновите карточку",
+    );
+    ensure(
+      request.status === "SUBMITTED",
+      409,
+      "Отменить можно только отправленную заявку до первого решения",
+    );
+    ensure(
+      !(await approvals.hasDecisions(client, id)),
+      409,
+      "По заявке уже принято решение. Отмена недоступна",
+    );
+    await requests.markCanceled(client, id, comment);
+    await approvals.skipPending(client, id);
+    await requests.addHistory(
+      client,
+      id,
+      request.status,
+      "CANCELED",
+      user.employee_id,
+      comment,
     );
   });
   return getRequest(user, id);

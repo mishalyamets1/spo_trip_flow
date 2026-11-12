@@ -13,16 +13,18 @@ import { ErrorAlert, Loading, Notice } from "../ui/feedback";
 import { TripSummary } from "./trip-summary";
 import { ExpenseSummary } from "./expense-summary";
 import { RequestHistory } from "./request-history";
+import { CancelRequest, CancellationSummary } from "./cancel-request";
 import { DraftActions } from "./draft-actions";
 import { ApprovalSteps } from "../approvals/approval-steps";
 import { ApprovalDecision } from "../approvals/approval-decision";
 export function RequestDetail({
   id,
-  fromApprovals = false,
+  backHref = "/requests",
 }: {
   id: string;
-  fromApprovals?: boolean;
+  backHref?: string;
 }) {
+  const fromApprovals = backHref.startsWith("/approvals");
   const { user } = useAuth();
   const router = useRouter();
   const load = useCallback(() => requestsApi.get(id), [id]);
@@ -43,6 +45,14 @@ export function RequestDetail({
     await action.run(async () => {
       setData(await requestsApi.submit(id, request.version));
       setNotice("Заявка отправлена на согласование");
+    });
+  }
+  async function cancel(reason: string) {
+    if (!request) return;
+    setNotice("");
+    await action.run(async () => {
+      setData(await requestsApi.cancel(id, request.version, reason));
+      setNotice("Заявка отменена. Ожидающие этапы закрыты.");
     });
   }
   async function remove() {
@@ -74,10 +84,7 @@ export function RequestDetail({
   }
   return (
     <>
-      <Link
-        className="text-button back"
-        href={fromApprovals ? "/approvals" : "/requests"}
-      >
+      <Link className="text-button back" href={backHref}>
         {fromApprovals ? "← К очереди согласования" : "← К списку заявок"}
       </Link>
       <ErrorAlert
@@ -107,12 +114,23 @@ export function RequestDetail({
             </div>
             <div className="detail-grid">
               <div>
+                <CancellationSummary request={request} />
                 <TripSummary request={request} />
                 <ExpenseSummary request={request} />
                 <RequestHistory request={request} />
               </div>
               <aside>
                 <ApprovalSteps steps={request.steps} />
+                {request.can_cancel && (
+                  <CancelRequest busy={action.busy} onCancel={cancel} />
+                )}
+                {!request.can_cancel &&
+                  request.employee_id === user?.employee_id &&
+                  request.status === "UNDER_REVIEW" && (
+                    <p className="muted small">
+                      Первое решение уже принято. Отмена заявки недоступна.
+                    </p>
+                  )}
                 {ownDraft && (
                   <DraftActions
                     id={id}
