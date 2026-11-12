@@ -36,6 +36,20 @@ jobs:
       - name: Jest — API, database and coverage
         run: npm run test:coverage
       - run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Playwright — UI scenarios
+        run: npm run test:e2e
+      - name: Upload Playwright report and failure traces
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: playwright-${{ github.sha }}
+          path: |
+            output/playwright/report
+            output/playwright/results
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Package build artifact
         run: |
           mkdir -p output/ci

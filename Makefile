@@ -1,7 +1,7 @@
 # Docker Compose and the Node scripts read .env themselves.
 # Do not evaluate .env as Make syntax (quoted passwords are not Make values).
 
-.PHONY: help up down reset migrate migrate-down migrate-status provision check psql setup demo admin app dev test backup restore benchmark benchmark-baseline monitor verify-runtime verify-upgrade preview-checks
+.PHONY: help up down reset migrate migrate-down migrate-status provision check psql setup demo admin app dev test backup restore benchmark benchmark-baseline monitor verify-runtime verify-upgrade preview-checks test-e2e
 
 help:
 	@echo "make setup          — БД, миграции и пароль роли приложения"
@@ -10,6 +10,7 @@ help:
 	@echo "make app            — собрать и запустить всё приложение"
 	@echo "make dev            — frontend и backend локально"
 	@echo "make preview-checks — отдельный учебный UI на 127.0.0.1:3105"
+	@echo "make test-e2e       — Playwright: UI, отдельные БД и frontend"
 	@echo "make test           — Jest на отдельной временной БД"
 	@echo "make benchmark      — 10 000 заявок / 50 пользователей, отдельная БД"
 	@echo "make monitor        — доступность live/ready, три проверки"
@@ -63,6 +64,9 @@ check:
 
 test:
 	@node scripts/test.mjs
+
+test-e2e:
+	@npm run test:e2e
 
 preview-checks:
 	@node --import tsx scripts/preview-checks.mjs

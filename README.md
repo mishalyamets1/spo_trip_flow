@@ -116,9 +116,11 @@ npm run format:check
 make check                  # исходные SQL-проверки Q-01–Q-08
 make test                   # Jest: API и БД, отдельная временная база
 npm run test:coverage       # Jest и покрытие бизнес-модулей, временная БД
+npx playwright install chromium  # один раз для UI-тестов
+npm run test:e2e            # Playwright: настоящий браузер и временный стенд
 ```
 
-`make test` создаёт отдельную временную БД, применяет миграции и после проверок удаляет её; рабочие данные не меняются. `npm test` без TEST_DATABASE_URL пропускает интеграционный блок; полная проверка — `make test`. Тесты написаны на TypeScript с Jest и ts-jest: `describe`/`test`, `expect`, хуки и `jest.spyOn`. Полный запуск — 36 тестов; покрытие бизнес-модулей — 97,84% строк. [Устройство тестов и команды](docs/testing.md), [протокол проверок](docs/verification.md).
+`make test` создаёт отдельную временную БД, применяет миграции и после проверок удаляет её; рабочие данные не меняются. `npm test` без TEST_DATABASE_URL пропускает интеграционный блок; полная проверка — `make test`. Модульные и API-тесты написаны на TypeScript с Jest и ts-jest: `describe`/`test`, `expect`, хуки и `jest.spyOn`. Полный запуск Jest — 36 тестов; покрытие бизнес-модулей — 97,84% строк. Отдельно Playwright проверяет 9 UI-сценариев в Chromium, включая ширину 360 px. [Устройство тестов и команды](docs/testing.md), [протокол проверок](docs/verification.md).
 
 ## Команды окружения
 
@@ -185,6 +187,7 @@ Frontend внутри `apps/web` использует файловый роут�
 - [Админка: вход, сотрудники, удаление с заявками, маршруты и API](docs/admin.md).
 - [Результаты проверок](docs/verification.md).
 - [Соответствие FR/NFR и оставшиеся пробелы](docs/requirements-audit.md).
+- [Сверка всех практических работ №1–32](docs/practice-compliance.md).
 - [Контракт REST API](docs/api/openapi.yaml).
 - [Архитектура, схема БД и бизнес-правила](docs/decisions/001-implementation.md).
 - [Материалы этапа II](docs/stage-2/report.md).

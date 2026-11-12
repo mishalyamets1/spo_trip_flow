@@ -11,9 +11,13 @@
     "test": "npm run test -w @tripflow/api",
     "format": "prettier --write apps scripts tests docs/api .github package.json docker-compose.yml",
     "format:check": "prettier --check apps scripts tests docs/api .github package.json docker-compose.yml",
-    "test:coverage": "node scripts/test.mjs --coverage"
+    "test:coverage": "node scripts/test.mjs --coverage",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:ui": "npm run test:e2e -- --ui",
+    "test:e2e:report": "playwright show-report output/playwright/report"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
     "concurrently": "^9.2.1",
     "prettier": "^3.6.2",
