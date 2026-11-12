@@ -1,8 +1,6 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { test, expect } from "@jest/globals";
 import { requestSchema } from "../apps/api/src/validators/request.validation.js";
 import { totalAmount } from "../apps/api/src/services/estimate.service.js";
-
 export const validInput = {
   destination_country: "Россия",
   destination_city: "Казань",
@@ -19,8 +17,8 @@ export const validInput = {
   ],
 };
 test("сумма сметы считается точно, включая копейки", () => {
-  assert.equal(totalAmount(validInput.expenses), "0.30");
-  assert.equal(totalAmount([]), "0.00");
+  expect(totalAmount(validInput.expenses)).toBe("0.30");
+  expect(totalAmount([])).toBe("0.00");
 });
 test("недопустимые даты, деньги и короткая цель отклоняются", () => {
   for (const changed of [
@@ -31,13 +29,12 @@ test("недопустимые даты, деньги и короткая цел
     { expenses: [{ category_id: "1", amount: "-1", description: "" }] },
     { expenses: [{ category_id: "1", amount: "1.001", description: "" }] },
   ])
-    assert.equal(
-      requestSchema.safeParse({ ...validInput, ...changed }).success,
+    expect(requestSchema.safeParse({ ...validInput, ...changed }).success).toBe(
       false,
     );
 });
 test("переполнение NUMERIC не проходит незаметно", () => {
-  assert.throws(() =>
+  expect(() =>
     totalAmount(
       Array.from({ length: 2 }, () => ({
         category_id: "1",
@@ -45,5 +42,5 @@ test("переполнение NUMERIC не проходит незаметно"
         description: "",
       })),
     ),
-  );
+  ).toThrow();
 });

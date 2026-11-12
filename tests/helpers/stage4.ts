@@ -1,89 +1,91 @@
-import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import type { TestContext } from "node:test";
+import { describe, test, beforeAll, expect, jest } from "@jest/globals";
 import type { Pool } from "pg";
-
 type Call = (
   path: string,
   method?: string,
   body?: unknown,
   cookie?: string,
   origin?: string,
-) => Promise<{ status: number; data: any; cookie: string }>;
-export async function runStage4Checks({
-  t,
-  call,
-  pool,
-  base,
-  input,
-  password,
-}: {
-  t: TestContext;
+) => Promise<{
+  status: number;
+  data: any;
+  cookie: string;
+}>;
+type Stage4Context = {
   call: Call;
   pool: Pool;
   base: string;
   input: Record<string, unknown>;
   password: string;
-}) {
-  async function login(email: string) {
-    const result = await call("/auth/login", "POST", { email, password });
-    assert.equal(result.status, 200);
-    return result.cookie;
-  }
-  const employee = await login("maxim@example.test");
-  const manager = await login("manager@example.test");
-  const finance = await login("finance@example.test");
-  async function sent() {
-    const draft = await call("/requests", "POST", input, employee);
-    assert.equal(draft.status, 201);
-    const result = await call(
-      `/requests/${draft.data.id}/submit`,
-      "POST",
-      { version: draft.data.version },
-      employee,
-    );
-    assert.equal(result.status, 200);
-    return result.data;
-  }
-  await t.test(
-    "IV: обработанные решения остаются у назначенного согласующего и фильтруются",
-    async () => {
+};
+export function registerStage4Checks(getContext: () => Stage4Context) {
+  describe("Отмена, архив и безопасность", () => {
+    let call: Call,
+      pool: Pool,
+      base: string,
+      input: Record<string, unknown>,
+      password: string;
+    let employee: string, manager: string, finance: string;
+    beforeAll(async () => {
+      ({ call, pool, base, input, password } = getContext());
+      employee = await login("maxim@example.test");
+      manager = await login("manager@example.test");
+      finance = await login("finance@example.test");
+    });
+    async function login(email: string) {
+      const result = await call("/auth/login", "POST", { email, password });
+      expect(result.status).toBe(200);
+      return result.cookie;
+    }
+    async function sent() {
+      const draft = await call("/requests", "POST", input, employee);
+      expect(draft.status).toBe(201);
+      const result = await call(
+        `/requests/${draft.data.id}/submit`,
+        "POST",
+        { version: draft.data.version },
+        employee,
+      );
+      expect(result.status).toBe(200);
+      return result.data;
+    }
+    test("IV: обработанные решения остаются у назначенного согласующего и фильтруются", async () => {
       const approved = await call(
         "/approvals?view=processed&decision=APPROVED",
         "GET",
         undefined,
         manager,
       );
-      assert.equal(approved.status, 200);
-      assert.equal(approved.data.total, 1);
-      assert.equal(approved.data.page_size, 20);
-      assert.equal(approved.data.items[0].approval_status, "APPROVED");
-      assert.ok(approved.data.items[0].approval_decided_at);
+      expect(approved.status).toBe(200);
+      expect(approved.data.total).toBe(1);
+      expect(approved.data.page_size).toBe(20);
+      expect(approved.data.items[0].approval_status).toBe("APPROVED");
+      expect(approved.data.items[0].approval_decided_at).toBeTruthy();
       const refused = await call(
         "/approvals?view=processed&decision=REJECTED",
         "GET",
         undefined,
         manager,
       );
-      assert.equal(refused.data.total, 1);
-      assert.equal(refused.data.items[0].approval_comment, "Уточните бюджет");
+      expect(refused.data.total).toBe(1);
+      expect(refused.data.items[0].approval_comment).toBe("Уточните бюджет");
       const financeList = await call(
         "/approvals?view=processed",
         "GET",
         undefined,
         finance,
       );
-      assert.ok(
+      expect(
         financeList.data.items.every((row: any) => row.id !== "1"),
-        "Старая заявка без финансового этапа не назначается финансисту",
-      );
+      ).toBeTruthy();
       const pending = await call("/approvals", "GET", undefined, manager);
-      assert.equal(pending.data.view, "pending");
-      assert.ok(
+      expect(pending.data.view).toBe("pending");
+      expect(
         pending.data.items.every(
           (row: any) => row.approval_status === "PENDING",
         ),
-      );
+      ).toBeTruthy();
       for (const query of [
         "view=unknown",
         "view=pending&decision=APPROVED",
@@ -91,26 +93,22 @@ export async function runStage4Checks({
         "view=processed&page=0",
         "view=processed&from=2026-11-12&to=2026-11-10",
       ]) {
-        assert.equal(
+        expect(
           (await call(`/approvals?${query}`, "GET", undefined, manager)).status,
-          400,
-        );
+        ).toBe(400);
       }
-    },
-  );
-  await t.test(
-    "IV: отмена до решения атомарно закрывает этапы и сохраняет причину",
-    async () => {
+    });
+    test("IV: отмена до решения атомарно закрывает этапы и сохраняет причину", async () => {
       const draft = await call(
         "/requests",
         "POST",
         { ...input, employee_id: "2", estimated_total: "999999" },
         employee,
       );
-      assert.equal(draft.data.employee_id, "1");
-      assert.equal(draft.data.estimated_total, "300.30");
-      assert.equal(draft.data.can_cancel, false);
-      assert.equal(
+      expect(draft.data.employee_id).toBe("1");
+      expect(draft.data.estimated_total).toBe("300.30");
+      expect(draft.data.can_cancel).toBe(false);
+      expect(
         (
           await call(
             `/requests/${draft.data.id}/cancel`,
@@ -119,8 +117,7 @@ export async function runStage4Checks({
             employee,
           )
         ).status,
-        409,
-      );
+      ).toBe(409);
       const result = await call(
         `/requests/${draft.data.id}/submit`,
         "POST",
@@ -128,30 +125,30 @@ export async function runStage4Checks({
         employee,
       );
       const before = result.data;
-      assert.equal(before.can_cancel, true);
+      expect(before.can_cancel).toBe(true);
       const canceled = await call(
         `/requests/${before.id}/cancel`,
         "POST",
         { version: before.version, reason: "  Рабочая встреча перенесена  " },
         employee,
       );
-      assert.equal(canceled.status, 200);
+      expect(canceled.status).toBe(200);
       const card = canceled.data;
-      assert.equal(card.status, "CANCELED");
-      assert.equal(card.cancellation_reason, "Рабочая встреча перенесена");
-      assert.ok(card.canceled_at);
-      assert.equal(card.submitted_at, before.submitted_at);
-      assert.equal(card.decided_at, null);
-      assert.equal(card.version, before.version + 1);
-      assert.equal(card.can_cancel, false);
-      assert.ok(
+      expect(card.status).toBe("CANCELED");
+      expect(card.cancellation_reason).toBe("Рабочая встреча перенесена");
+      expect(card.canceled_at).toBeTruthy();
+      expect(card.submitted_at).toBe(before.submitted_at);
+      expect(card.decided_at).toBe(null);
+      expect(card.version).toBe(before.version + 1);
+      expect(card.can_cancel).toBe(false);
+      expect(
         card.steps.every(
           (step: any) => step.status === "SKIPPED" && !step.actionable,
         ),
-      );
-      assert.equal(card.history.length, 3);
-      assert.equal(card.history.at(-1).new_status, "CANCELED");
-      assert.equal(card.history.at(-1).comment, "Рабочая встреча перенесена");
+      ).toBeTruthy();
+      expect(card.history.length).toBe(3);
+      expect(card.history.at(-1).new_status).toBe("CANCELED");
+      expect(card.history.at(-1).comment).toBe("Рабочая встреча перенесена");
       for (const user of [manager, finance])
         for (const view of ["pending", "processed"]) {
           const list = await call(
@@ -160,10 +157,12 @@ export async function runStage4Checks({
             undefined,
             user,
           );
-          assert.ok(list.data.items.every((row: any) => row.id !== card.id));
+          expect(
+            list.data.items.every((row: any) => row.id !== card.id),
+          ).toBeTruthy();
         }
       for (const operation of ["cancel", "submit"])
-        assert.equal(
+        expect(
           (
             await call(
               `/requests/${card.id}/${operation}`,
@@ -172,9 +171,8 @@ export async function runStage4Checks({
               employee,
             )
           ).status,
-          409,
-        );
-      assert.equal(
+        ).toBe(409);
+      expect(
         (
           await call(
             `/approvals/${card.steps[0].id}/approve`,
@@ -183,17 +181,13 @@ export async function runStage4Checks({
             manager,
           )
         ).status,
-        409,
-      );
-    },
-  );
-  let pendingForAuth: any;
-  await t.test(
-    "IV: неверная отмена, чужая заявка и снятая роль не обходят правила",
-    async () => {
+      ).toBe(409);
+    });
+    let pendingForAuth: any;
+    test("IV: неверная отмена, чужая заявка и снятая роль не обходят правила", async () => {
       pendingForAuth = await sent();
       const r = pendingForAuth;
-      assert.equal(
+      expect(
         (
           await call(
             `/requests/${r.id}/cancel`,
@@ -202,8 +196,7 @@ export async function runStage4Checks({
             manager,
           )
         ).status,
-        404,
-      );
+      ).toBe(404);
       for (const body of [
         { version: r.version, reason: "" },
         { version: r.version, reason: "   " },
@@ -211,13 +204,12 @@ export async function runStage4Checks({
         { reason: "Нет версии" },
         { version: 0, reason: "Неверная версия" },
       ]) {
-        assert.equal(
+        expect(
           (await call(`/requests/${r.id}/cancel`, "POST", body, employee))
             .status,
-          400,
-        );
+        ).toBe(400);
       }
-      assert.equal(
+      expect(
         (
           await call(
             `/requests/${r.id}/cancel`,
@@ -226,21 +218,20 @@ export async function runStage4Checks({
             employee,
           )
         ).status,
-        409,
-      );
+      ).toBe(409);
       const unchanged = await call(
         `/requests/${r.id}`,
         "GET",
         undefined,
         employee,
       );
-      assert.equal(unchanged.data.status, "SUBMITTED");
-      assert.equal(unchanged.data.history.length, 2);
+      expect(unchanged.data.status).toBe("SUBMITTED");
+      expect(unchanged.data.history.length).toBe(2);
       await pool.query(
         "DELETE FROM user_roles USING roles WHERE user_roles.role_id=roles.id AND user_id=1 AND code='EMPLOYEE'",
       );
       try {
-        assert.equal(
+        expect(
           (
             await call(
               `/requests/${r.id}/cancel`,
@@ -249,8 +240,7 @@ export async function runStage4Checks({
               employee,
             )
           ).status,
-          403,
-        );
+        ).toBe(403);
       } finally {
         await pool.query(
           "INSERT INTO user_roles(user_id,role_id) SELECT 1,id FROM roles WHERE code='EMPLOYEE' ON CONFLICT DO NOTHING",
@@ -260,21 +250,18 @@ export async function runStage4Checks({
         "DELETE FROM user_roles USING roles WHERE user_roles.role_id=roles.id AND user_id=2 AND code='APPROVER'",
       );
       try {
-        assert.equal(
+        expect(
           (await call("/approvals?view=processed", "GET", undefined, manager))
             .status,
-          403,
-        );
-        assert.equal(
+        ).toBe(403);
+        expect(
           (await call(`/requests/${r.id}`, "GET", undefined, manager)).status,
-          404,
-        );
-        assert.equal(
+        ).toBe(404);
+        expect(
           (await call(`/requests/${r.id}/history`, "GET", undefined, manager))
             .status,
-          404,
-        );
-        assert.equal(
+        ).toBe(404);
+        expect(
           (
             await call(
               `/approvals/${r.steps[0].id}/approve`,
@@ -283,18 +270,14 @@ export async function runStage4Checks({
               manager,
             )
           ).status,
-          403,
-        );
+        ).toBe(403);
       } finally {
         await pool.query(
           "INSERT INTO user_roles(user_id,role_id) SELECT 2,id FROM roles WHERE code='APPROVER' ON CONFLICT DO NOTHING",
         );
       }
-    },
-  );
-  await t.test(
-    "IV: после первого решения отмена запрещена, архив отделяет моё решение от итогового",
-    async () => {
+    });
+    test("IV: после первого решения отмена запрещена, архив отделяет моё решение от итогового", async () => {
       const r = pendingForAuth;
       const approved = await call(
         `/approvals/${r.steps[0].id}/approve`,
@@ -302,9 +285,9 @@ export async function runStage4Checks({
         { version: r.version, comment: "Руководитель согласовал" },
         manager,
       );
-      assert.equal(approved.status, 200);
-      assert.equal(approved.data.can_cancel, false);
-      assert.equal(
+      expect(approved.status).toBe(200);
+      expect(approved.data.can_cancel).toBe(false);
+      expect(
         (
           await call(
             `/requests/${r.id}/cancel`,
@@ -313,15 +296,14 @@ export async function runStage4Checks({
             employee,
           )
         ).status,
-        409,
-      );
+      ).toBe(409);
       const rejected = await call(
         `/approvals/${r.steps[1].id}/reject`,
         "POST",
         { version: approved.data.version, comment: "Бюджет не подтверждён" },
         finance,
       );
-      assert.equal(rejected.status, 200);
+      expect(rejected.status).toBe(200);
       const archive = await call(
         "/approvals?view=processed&decision=APPROVED",
         "GET",
@@ -329,14 +311,11 @@ export async function runStage4Checks({
         manager,
       );
       const item = archive.data.items.find((row: any) => row.id === r.id);
-      assert.equal(item.approval_status, "APPROVED");
-      assert.equal(item.status, "REJECTED");
-      assert.equal(item.approval_comment, "Руководитель согласовал");
-    },
-  );
-  await t.test(
-    "IV: конкурентные отмена и решение дают только один допустимый результат",
-    async () => {
+      expect(item.approval_status).toBe("APPROVED");
+      expect(item.status).toBe("REJECTED");
+      expect(item.approval_comment).toBe("Руководитель согласовал");
+    });
+    test("IV: конкурентные отмена и решение дают только один допустимый результат", async () => {
       const r = await sent();
       const results = await Promise.all([
         call(
@@ -352,52 +331,42 @@ export async function runStage4Checks({
           manager,
         ),
       ]);
-      assert.deepEqual(
-        results.map((result) => result.status).sort(),
-        [200, 409],
-      );
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
       const card = (await call(`/requests/${r.id}`, "GET", undefined, employee))
         .data;
-      assert.equal(card.version, r.version + 1);
-      assert.equal(card.history.length, 3);
+      expect(card.version).toBe(r.version + 1);
+      expect(card.history.length).toBe(3);
       if (card.status === "CANCELED") {
-        assert.ok(card.steps.every((step: any) => step.status === "SKIPPED"));
+        expect(
+          card.steps.every((step: any) => step.status === "SKIPPED"),
+        ).toBeTruthy();
       } else {
-        assert.equal(card.status, "UNDER_REVIEW");
-        assert.equal(card.steps[0].status, "APPROVED");
-        assert.equal(card.steps[1].status, "PENDING");
-        assert.equal(card.canceled_at, null);
+        expect(card.status).toBe("UNDER_REVIEW");
+        expect(card.steps[0].status).toBe("APPROVED");
+        expect(card.steps[1].status).toBe("PENDING");
+        expect(card.canceled_at).toBe(null);
       }
-    },
-  );
-  await t.test(
-    "IV: CHECK защищает метаданные отмены независимо от API",
-    async () => {
+    });
+    test("IV: CHECK защищает метаданные отмены независимо от API", async () => {
       const draft = (await call("/requests", "POST", input, employee)).data;
-      await assert.rejects(
+      await expect(
         pool.query(
           "UPDATE travel_requests SET status='CANCELED',submitted_at=now() WHERE id=$1",
           [draft.id],
         ),
-        { code: "23514" },
-      );
-      await assert.rejects(
+      ).rejects.toMatchObject({ code: "23514" });
+      await expect(
         pool.query(
           "UPDATE travel_requests SET cancellation_reason='Не отменена' WHERE id=$1",
           [draft.id],
         ),
-        { code: "23514" },
-      );
-      assert.equal(
+      ).rejects.toMatchObject({ code: "23514" });
+      expect(
         (await call(`/requests/${draft.id}`, "GET", undefined, employee)).data
           .status,
-        "DRAFT",
-      );
-    },
-  );
-  await t.test(
-    "IV: пагинация обработанных не теряет записи и не раскрывает чужие назначения",
-    async () => {
+      ).toBe("DRAFT");
+    });
+    test("IV: пагинация обработанных не теряет записи и не раскрывает чужие назначения", async () => {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
@@ -442,14 +411,14 @@ export async function runStage4Checks({
         .data;
       const second = (await call(query + "&page=2", "GET", undefined, manager))
         .data;
-      assert.equal(first.total, 21);
-      assert.equal(first.items.length, 20);
-      assert.equal(second.items.length, 1);
+      expect(first.total).toBe(21);
+      expect(first.items.length).toBe(20);
+      expect(second.items.length).toBe(1);
       const ids = [...first.items, ...second.items].map((row) => row.id);
-      assert.equal(new Set(ids).size, 21);
+      expect(new Set(ids).size).toBe(21);
       const other = (await call(query, "GET", undefined, finance)).data;
-      assert.equal(other.total, 0);
-      assert.equal(
+      expect(other.total).toBe(0);
+      expect(
         (
           await call(
             `/requests/${first.items[0].id}`,
@@ -458,15 +427,11 @@ export async function runStage4Checks({
             finance,
           )
         ).status,
-        404,
-      );
+      ).toBe(404);
       const times = first.items.map((row: any) => row.approval_decided_at);
-      assert.deepEqual(times, [...times].sort().reverse());
-    },
-  );
-  await t.test(
-    "IV: истёкшая, удалённая сессия и отключённая учётная запись отклоняются",
-    async () => {
+      expect(times).toEqual([...times].sort().reverse());
+    });
+    test("IV: истёкшая, удалённая сессия и отключённая учётная запись отклоняются", async () => {
       const expired = await login("maxim@example.test");
       const hash = (cookie: string) =>
         createHash("sha256")
@@ -476,33 +441,29 @@ export async function runStage4Checks({
         "UPDATE sessions SET expires_at=now()-interval '1 second' WHERE token_hash=$1",
         [hash(expired)],
       );
-      assert.equal(
-        (await call("/auth/me", "GET", undefined, expired)).status,
+      expect((await call("/auth/me", "GET", undefined, expired)).status).toBe(
         401,
       );
       const revoked = await login("maxim@example.test");
       await pool.query("DELETE FROM sessions WHERE token_hash=$1", [
         hash(revoked),
       ]);
-      assert.equal(
-        (await call("/auth/me", "GET", undefined, revoked)).status,
+      expect((await call("/auth/me", "GET", undefined, revoked)).status).toBe(
         401,
       );
       await pool.query("UPDATE users SET is_active=false WHERE id=2");
       try {
-        assert.equal(
-          (await call("/auth/me", "GET", undefined, manager)).status,
+        expect((await call("/auth/me", "GET", undefined, manager)).status).toBe(
           401,
         );
-        assert.equal(
+        expect(
           (
             await call("/auth/login", "POST", {
               email: "manager@example.test",
               password,
             })
           ).status,
-          401,
-        );
+        ).toBe(401);
       } finally {
         await pool.query("UPDATE users SET is_active=true WHERE id=2");
       }
@@ -514,24 +475,21 @@ export async function runStage4Checks({
         },
         body: JSON.stringify({ email: "maxim@example.test", password }),
       });
-      assert.equal(response.status, 200);
+      expect(response.status).toBe(200);
       const setCookie = response.headers.get("set-cookie")!;
-      assert.match(setCookie, /HttpOnly/);
-      assert.match(setCookie, /SameSite=Lax/);
-      assert.match(setCookie, /Max-Age=28800/);
+      expect(setCookie).toMatch(/HttpOnly/);
+      expect(setCookie).toMatch(/SameSite=Lax/);
+      expect(setCookie).toMatch(/Max-Age=28800/);
       const user = await response.json();
-      assert.equal("password_hash" in user, false);
-      assert.equal("token_hash" in user, false);
+      expect("password_hash" in user).toBe(false);
+      expect("token_hash" in user).toBe(false);
       await call("/auth/logout", "POST", {}, setCookie.split(";")[0]);
-    },
-  );
-  await t.test(
-    "IV: CSRF, тип запроса, SQL-ввод и логи не обходят защиту",
-    async (sub) => {
+    });
+    test("IV: CSRF, тип запроса, SQL-ввод и логи не обходят защиту", async () => {
       const messages: string[] = [];
-      sub.mock.method(console, "log", (...args: unknown[]) =>
-        messages.push(args.join(" ")),
-      );
+      jest.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+        messages.push(args.join(" "));
+      });
       const response = await fetch(base + "/requests", {
         method: "POST",
         headers: {
@@ -541,12 +499,11 @@ export async function runStage4Checks({
         },
         body: "{}",
       });
-      assert.equal(response.status, 415);
-      assert.equal(
+      expect(response.status).toBe(415);
+      expect(
         (await call("/requests", "POST", input, employee, "")).status,
-        403,
-      );
-      assert.equal(
+      ).toBe(403);
+      expect(
         (
           await call(
             "/requests",
@@ -556,8 +513,7 @@ export async function runStage4Checks({
             "http://localhost:9999",
           )
         ).status,
-        403,
-      );
+      ).toBe(403);
       const malformed = await fetch(base + "/requests", {
         method: "POST",
         headers: {
@@ -567,13 +523,12 @@ export async function runStage4Checks({
         },
         body: '{"bad":',
       });
-      assert.equal(malformed.status, 400);
-      assert.equal(
+      expect(malformed.status).toBe(400);
+      expect(
         (await call("/requests/1%20OR%201=1", "GET", undefined, employee))
           .status,
-        400,
-      );
-      assert.equal(
+      ).toBe(400);
+      expect(
         (
           await call(
             "/approvals?view=processed&decision=APPROVED%27%20OR%201=1--",
@@ -582,8 +537,7 @@ export async function runStage4Checks({
             manager,
           )
         ).status,
-        400,
-      );
+      ).toBe(400);
       const count = (await pool.query("SELECT count(*) FROM users")).rows[0]
         .count;
       const text =
@@ -594,32 +548,30 @@ export async function runStage4Checks({
         { ...input, purpose: text },
         employee,
       );
-      assert.equal(stored.status, 201);
-      assert.equal(stored.data.purpose, text);
-      assert.equal(
+      expect(stored.status).toBe(201);
+      expect(stored.data.purpose).toBe(text);
+      expect(
         (await pool.query("SELECT count(*) FROM users")).rows[0].count,
-        count,
-      );
-      assert.equal(messages.join("\n").includes(password), false);
-      assert.equal(messages.join("\n").includes(employee), false);
-      assert.equal(
-        messages.join("\n").includes(process.env.TEST_DATABASE_URL!),
+      ).toBe(count);
+      expect(messages.join("\n").includes(password)).toBe(false);
+      expect(messages.join("\n").includes(employee)).toBe(false);
+      expect(messages.join("\n").includes(process.env.TEST_DATABASE_URL!)).toBe(
         false,
       );
-      assert.ok(messages.some((line) => line.includes("requestId")));
-    },
-  );
-  await t.test("IV: ограничение попыток входа возвращает 429", async () => {
-    let result;
-    for (let i = 0; i < 35; i++) {
-      result = await call("/auth/login", "POST", {
-        email: "maxim@example.test",
-        password: "wrong",
-      });
-      if (result.status === 429) break;
-    }
-    assert.equal(result?.status, 429);
-    assert.match(result?.data.error.message, /попыток/);
-    assert.equal((await call("/health/live")).status, 200);
+      expect(messages.some((line) => line.includes("requestId"))).toBeTruthy();
+    });
+    test("IV: ограничение попыток входа возвращает 429", async () => {
+      let result;
+      for (let i = 0; i < 35; i++) {
+        result = await call("/auth/login", "POST", {
+          email: "maxim@example.test",
+          password: "wrong",
+        });
+        if (result.status === 429) break;
+      }
+      expect(result?.status).toBe(429);
+      expect(result?.data.error.message).toMatch(/попыток/);
+      expect((await call("/health/live")).status).toBe(200);
+    });
   });
 }

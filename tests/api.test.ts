@@ -1,15 +1,29 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import {
+  describe,
+  test,
+  beforeAll,
+  beforeEach,
+  afterAll,
+  expect,
+  jest,
+} from "@jest/globals";
+import type { Server } from "node:http";
+import type { Pool } from "pg";
 import { once } from "node:events";
-import { runStage4Checks } from "./helpers/stage4.js";
-import { runAdminChecks } from "./helpers/admin.js";
-
-test(
-  "API и PostgreSQL: полный цикл и ограничения",
-  { skip: !process.env.TEST_DATABASE_URL },
-  async (t) => {
-    assert.match(
-      new URL(process.env.TEST_DATABASE_URL!).pathname,
+import { registerStage4Checks } from "./helpers/stage4.js";
+import { registerAdminChecks } from "./helpers/admin.js";
+const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
+integration("API и PostgreSQL: полный цикл и ограничения", () => {
+  let pool: Pool;
+  let server: Server | undefined;
+  let base: string;
+  const password = "TripFlow-test-password!";
+  // Keep request logs out of Jest output; the logging scenario installs its own capture.
+  beforeEach(() => {
+    jest.spyOn(console, "log").mockImplementation(() => {});
+  });
+  beforeAll(async () => {
+    expect(new URL(process.env.TEST_DATABASE_URL!).pathname).toMatch(
       /^\/tripflow_test_[a-z0-9_]+$/,
     );
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -17,417 +31,382 @@ test(
     process.env.APP_ORIGIN = "http://localhost:3000";
     process.env.NODE_ENV = "test";
     const { app } = await import("../apps/api/src/app.js");
-    const { pool } = await import("../apps/api/src/db.js");
+    ({ pool } = await import("../apps/api/src/db.js"));
     const { hashPassword } = await import("../apps/api/src/utils/crypto.js");
     const connected = await pool.query("SELECT current_database() AS name");
-    assert.equal(
-      connected.rows[0].name,
+    expect(connected.rows[0].name).toBe(
       new URL(process.env.TEST_DATABASE_URL!).pathname.slice(1),
     );
-    const password = "TripFlow-test-password!";
     await pool.query("UPDATE users SET password_hash=$1", [
       await hashPassword(password),
     ]);
-    const server = app.listen(0, "127.0.0.1");
+    server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
-    t.after(async () => {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-      await pool.end();
-    });
-    async function call(
-      path: string,
-      method = "GET",
-      body?: unknown,
-      cookie = "",
-      origin = "http://localhost:3000",
-    ) {
-      const response = await fetch(base + path, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: cookie,
-          Origin: origin,
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-      const data = response.status === 204 ? null : await response.json();
-      return {
-        status: response.status,
-        data,
-        cookie: response.headers.get("set-cookie")?.split(";")[0] || "",
-      };
-    }
-    const input = {
-      destination_country: "Россия",
-      destination_city: "Казань",
-      purpose: "Встреча с командой проекта",
-      start_date: "2026-11-10",
-      end_date: "2026-11-12",
-      transport_type: "RAIL",
-      accommodation_required: true,
-      currency: "RUB",
-      employee_comment: "",
-      expenses: [
-        { category_id: "1", amount: "100.10", description: "" },
-        { category_id: "2", amount: "200.20", description: "" },
-      ],
-    };
-    let employee = "",
-      manager = "",
-      finance = "";
-    let request: any;
-    await t.test("роль приложения не может менять схему", async () => {
-      await assert.rejects(
-        pool.query("CREATE TABLE trip_app.forbidden_table(id int)"),
-        { code: "42501" },
-      );
-    });
-    await t.test(
-      "готовность, вход, неверный пароль, CSRF и доступ без сессии",
-      async () => {
-        assert.equal((await call("/health/ready")).status, 200);
-        assert.equal((await call("/requests")).status, 401);
-        assert.equal(
-          (
-            await call(
-              "/auth/login",
-              "POST",
-              { email: "maxim@example.test", password: "wrong" },
-              "",
-              "http://localhost:3001",
-            )
-          ).status,
-          401,
-        );
-        assert.equal(
-          (
-            await call(
-              "/auth/login",
-              "POST",
-              { email: "maxim@example.test", password },
-              "",
-              "http://localhost:9999",
-            )
-          ).status,
-          403,
-        );
-        assert.equal(
-          (
-            await call("/auth/login", "POST", {
-              email: "maxim@example.test",
-              password: "wrong",
-            })
-          ).status,
-          401,
-        );
-        assert.equal(
-          (
-            await call(
-              "/auth/login",
-              "POST",
-              { email: "maxim@example.test", password },
-              "",
-              "https://foreign.test",
-            )
-          ).status,
-          403,
-        );
-        for (const [email, assign] of [
-          [
-            "maxim@example.test",
-            (x: string) => {
-              employee = x;
-            },
-          ],
-          [
-            "manager@example.test",
-            (x: string) => {
-              manager = x;
-            },
-          ],
-          [
-            "finance@example.test",
-            (x: string) => {
-              finance = x;
-            },
-          ],
-        ] as const) {
-          const login = await call("/auth/login", "POST", { email, password });
-          assert.equal(login.status, 200);
-          assert.ok(login.cookie);
-          assign(login.cookie);
+    base = `http://127.0.0.1:${
+      (
+        server.address() as {
+          port: number;
         }
-        assert.equal((await call("/health/live")).status, 200);
-        assert.equal(
-          (await call("/auth/me", "GET", undefined, employee)).status,
-          200,
+      ).port
+    }/api`;
+  });
+  afterAll(async () => {
+    try {
+      if (server)
+        await new Promise<void>((resolve, reject) =>
+          server!.close((error) => (error ? reject(error) : resolve())),
         );
-        const categories = await call(
-          "/expense-categories",
-          "GET",
-          undefined,
-          employee,
-        );
-        assert.equal(categories.status, 200);
-        assert.equal(categories.data.items.length, 4);
+    } finally {
+      await pool?.end();
+      jest.restoreAllMocks();
+    }
+  });
+  async function call(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    cookie = "",
+    origin = "http://localhost:3000",
+  ) {
+    const response = await fetch(base + path, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookie,
+        Origin: origin,
       },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = response.status === 204 ? null : await response.json();
+    return {
+      status: response.status,
+      data,
+      cookie: response.headers.get("set-cookie")?.split(";")[0] || "",
+    };
+  }
+  const input = {
+    destination_country: "Россия",
+    destination_city: "Казань",
+    purpose: "Встреча с командой проекта",
+    start_date: "2026-11-10",
+    end_date: "2026-11-12",
+    transport_type: "RAIL",
+    accommodation_required: true,
+    currency: "RUB",
+    employee_comment: "",
+    expenses: [
+      { category_id: "1", amount: "100.10", description: "" },
+      { category_id: "2", amount: "200.20", description: "" },
+    ],
+  };
+  let employee = "",
+    manager = "",
+    finance = "";
+  let request: any;
+  test("роль приложения не может менять схему", async () => {
+    await expect(
+      pool.query("CREATE TABLE trip_app.forbidden_table(id int)"),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+  test("готовность, вход, неверный пароль, CSRF и доступ без сессии", async () => {
+    expect((await call("/health/ready")).status).toBe(200);
+    expect((await call("/requests")).status).toBe(401);
+    expect(
+      (
+        await call(
+          "/auth/login",
+          "POST",
+          { email: "maxim@example.test", password: "wrong" },
+          "",
+          "http://localhost:3001",
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await call(
+          "/auth/login",
+          "POST",
+          { email: "maxim@example.test", password },
+          "",
+          "http://localhost:9999",
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await call("/auth/login", "POST", {
+          email: "maxim@example.test",
+          password: "wrong",
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await call(
+          "/auth/login",
+          "POST",
+          { email: "maxim@example.test", password },
+          "",
+          "https://foreign.test",
+        )
+      ).status,
+    ).toBe(403);
+    for (const [email, assign] of [
+      [
+        "maxim@example.test",
+        (x: string) => {
+          employee = x;
+        },
+      ],
+      [
+        "manager@example.test",
+        (x: string) => {
+          manager = x;
+        },
+      ],
+      [
+        "finance@example.test",
+        (x: string) => {
+          finance = x;
+        },
+      ],
+    ] as const) {
+      const login = await call("/auth/login", "POST", { email, password });
+      expect(login.status).toBe(200);
+      expect(login.cookie).toBeTruthy();
+      assign(login.cookie);
+    }
+    expect((await call("/health/live")).status).toBe(200);
+    expect((await call("/auth/me", "GET", undefined, employee)).status).toBe(
+      200,
     );
-    await t.test(
-      "создание и обновление черновика, точная сумма и конфликт версии",
-      async () => {
-        const created = await call("/requests", "POST", input, employee);
-        assert.equal(created.status, 201);
-        request = created.data;
-        assert.equal(typeof request.expenses[0].category_id, "string");
-        assert.equal(request.estimated_total, "300.30");
-        assert.equal(request.history.length, 1);
-        assert.equal(
-          (await call(`/requests/${request.id}`, "GET", undefined, manager))
-            .status,
-          404,
-        );
-        const updated = await call(
+    const categories = await call(
+      "/expense-categories",
+      "GET",
+      undefined,
+      employee,
+    );
+    expect(categories.status).toBe(200);
+    expect(categories.data.items.length).toBe(4);
+  });
+  test("создание и обновление черновика, точная сумма и конфликт версии", async () => {
+    const created = await call("/requests", "POST", input, employee);
+    expect(created.status).toBe(201);
+    request = created.data;
+    expect(typeof request.expenses[0].category_id).toBe("string");
+    expect(request.estimated_total).toBe("300.30");
+    expect(request.history.length).toBe(1);
+    expect(
+      (await call(`/requests/${request.id}`, "GET", undefined, manager)).status,
+    ).toBe(404);
+    const updated = await call(
+      `/requests/${request.id}`,
+      "PATCH",
+      { ...input, version: request.version, destination_city: "Самара" },
+      employee,
+    );
+    expect(updated.status).toBe(200);
+    expect(
+      (
+        await call(
           `/requests/${request.id}`,
           "PATCH",
-          { ...input, version: request.version, destination_city: "Самара" },
+          { ...input, version: request.version },
           employee,
-        );
-        assert.equal(updated.status, 200);
-        assert.equal(
-          (
-            await call(
-              `/requests/${request.id}`,
-              "PATCH",
-              { ...input, version: request.version },
-              employee,
-            )
-          ).status,
-          409,
-        );
-        request = updated.data;
-      },
-    );
-    await t.test(
-      "ошибочные данные и откат частично выполненной записи",
-      async () => {
-        assert.equal(
-          (
-            await call(
-              "/requests",
-              "POST",
-              { ...input, end_date: "2026-11-09" },
-              employee,
-            )
-          ).status,
-          400,
-        );
-        const before = (await pool.query("SELECT count(*) FROM trips")).rows[0]
-          .count;
-        const bad = await call(
+        )
+      ).status,
+    ).toBe(409);
+    request = updated.data;
+  });
+  test("ошибочные данные и откат частично выполненной записи", async () => {
+    expect(
+      (
+        await call(
           "/requests",
           "POST",
-          {
-            ...input,
-            expenses: [{ category_id: "999999", amount: "1", description: "" }],
-          },
+          { ...input, end_date: "2026-11-09" },
           employee,
-        );
-        assert.equal(bad.status, 400);
-        assert.equal(
-          (await pool.query("SELECT count(*) FROM trips")).rows[0].count,
-          before,
-        );
-        assert.equal(
-          (await call("/approvals", "GET", undefined, employee)).status,
-          403,
-        );
+        )
+      ).status,
+    ).toBe(400);
+    const before = (await pool.query("SELECT count(*) FROM trips")).rows[0]
+      .count;
+    const bad = await call(
+      "/requests",
+      "POST",
+      {
+        ...input,
+        expenses: [{ category_id: "999999", amount: "1", description: "" }],
       },
+      employee,
     );
-    await t.test(
-      "отправка создаёт снимок двух этапов, повторы запрещены",
-      async () => {
-        const sent = await call(
+    expect(bad.status).toBe(400);
+    expect((await pool.query("SELECT count(*) FROM trips")).rows[0].count).toBe(
+      before,
+    );
+    expect((await call("/approvals", "GET", undefined, employee)).status).toBe(
+      403,
+    );
+  });
+  test("отправка создаёт снимок двух этапов, повторы запрещены", async () => {
+    const sent = await call(
+      `/requests/${request.id}/submit`,
+      "POST",
+      { version: request.version },
+      employee,
+    );
+    expect(sent.status).toBe(200);
+    request = sent.data;
+    expect(request.status).toBe("SUBMITTED");
+    expect(request.steps.length).toBe(2);
+    await pool.query(
+      "UPDATE approval_route_steps SET step_order=99 WHERE step_order=2",
+    );
+    const snapshot = await call(
+      `/requests/${request.id}`,
+      "GET",
+      undefined,
+      employee,
+    );
+    expect(snapshot.data.steps[1].step_order).toBe(2);
+    await pool.query(
+      "UPDATE approval_route_steps SET step_order=2 WHERE step_order=99",
+    );
+    expect(
+      (
+        await call(
           `/requests/${request.id}/submit`,
           "POST",
           { version: request.version },
           employee,
-        );
-        assert.equal(sent.status, 200);
-        request = sent.data;
-        assert.equal(request.status, "SUBMITTED");
-        assert.equal(request.steps.length, 2);
-        await pool.query(
-          "UPDATE approval_route_steps SET step_order=99 WHERE step_order=2",
-        );
-        const snapshot = await call(
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await call(
           `/requests/${request.id}`,
-          "GET",
-          undefined,
+          "PATCH",
+          { ...input, version: request.version },
           employee,
-        );
-        assert.equal(snapshot.data.steps[1].step_order, 2);
-        await pool.query(
-          "UPDATE approval_route_steps SET step_order=2 WHERE step_order=99",
-        );
-        assert.equal(
-          (
-            await call(
-              `/requests/${request.id}/submit`,
-              "POST",
-              { version: request.version },
-              employee,
-            )
-          ).status,
-          409,
-        );
-        assert.equal(
-          (
-            await call(
-              `/requests/${request.id}`,
-              "PATCH",
-              { ...input, version: request.version },
-              employee,
-            )
-          ).status,
-          409,
-        );
-        assert.equal(
-          (await call("/approvals", "GET", undefined, finance)).data.items
-            .length,
-          0,
-        );
-        assert.equal(
-          (
-            await call(
-              `/approvals/${request.steps[1].id}/approve`,
-              "POST",
-              { version: request.version },
-              finance,
-            )
-          ).status,
-          409,
-        );
-      },
-    );
-    await t.test(
-      "конкурентное решение выполняется один раз, последний этап завершает заявку",
-      async () => {
-        const results = await Promise.all(
-          Array.from({ length: 2 }, () =>
-            call(
-              `/approvals/${request.steps[0].id}/approve`,
-              "POST",
-              { version: request.version },
-              manager,
-            ),
-          ),
-        );
-        assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
-        request = results.find((r) => r.status === 200)!.data;
-        assert.equal(request.status, "UNDER_REVIEW");
-        assert.equal(
-          (await call("/approvals", "GET", undefined, finance)).data.items
-            .length,
-          1,
-        );
-        const final = await call(
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (await call("/approvals", "GET", undefined, finance)).data.items.length,
+    ).toBe(0);
+    expect(
+      (
+        await call(
           `/approvals/${request.steps[1].id}/approve`,
           "POST",
           { version: request.version },
           finance,
-        );
-        assert.equal(final.status, 200);
-        assert.equal(final.data.status, "APPROVED");
-        assert.equal(final.data.history.length, 4);
-        assert.ok(final.data.decided_at);
-      },
+        )
+      ).status,
+    ).toBe(409);
+  });
+  test("конкурентное решение выполняется один раз, последний этап завершает заявку", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 2 }, () =>
+        call(
+          `/approvals/${request.steps[0].id}/approve`,
+          "POST",
+          { version: request.version },
+          manager,
+        ),
+      ),
     );
-    await t.test(
-      "отказ требует причину и прекращает последующие этапы",
-      async () => {
-        request = (await call("/requests", "POST", input, employee)).data;
-        request = (
-          await call(
-            `/requests/${request.id}/submit`,
-            "POST",
-            { version: request.version },
-            employee,
-          )
-        ).data;
-        assert.equal(
-          (
-            await call(
-              `/approvals/${request.steps[0].id}/reject`,
-              "POST",
-              { version: request.version, comment: "   " },
-              manager,
-            )
-          ).status,
-          400,
-        );
-        const rejected = await call(
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    request = results.find((r) => r.status === 200)!.data;
+    expect(request.status).toBe("UNDER_REVIEW");
+    expect(
+      (await call("/approvals", "GET", undefined, finance)).data.items.length,
+    ).toBe(1);
+    const final = await call(
+      `/approvals/${request.steps[1].id}/approve`,
+      "POST",
+      { version: request.version },
+      finance,
+    );
+    expect(final.status).toBe(200);
+    expect(final.data.status).toBe("APPROVED");
+    expect(final.data.history.length).toBe(4);
+    expect(final.data.decided_at).toBeTruthy();
+  });
+  test("отказ требует причину и прекращает последующие этапы", async () => {
+    request = (await call("/requests", "POST", input, employee)).data;
+    request = (
+      await call(
+        `/requests/${request.id}/submit`,
+        "POST",
+        { version: request.version },
+        employee,
+      )
+    ).data;
+    expect(
+      (
+        await call(
           `/approvals/${request.steps[0].id}/reject`,
           "POST",
-          { version: request.version, comment: "Уточните бюджет" },
+          { version: request.version, comment: "   " },
           manager,
-        );
-        assert.equal(rejected.status, 200);
-        assert.equal(rejected.data.status, "REJECTED");
-        assert.equal(rejected.data.steps[1].status, "SKIPPED");
-        assert.equal(rejected.data.history.at(-1).comment, "Уточните бюджет");
-      },
+        )
+      ).status,
+    ).toBe(400);
+    const rejected = await call(
+      `/approvals/${request.steps[0].id}/reject`,
+      "POST",
+      { version: request.version, comment: "Уточните бюджет" },
+      manager,
     );
-    await t.test("самосогласование, удаление черновика и выход", async () => {
-      const own = await call("/requests", "POST", input, manager);
-      assert.equal(
-        (
-          await call(
-            `/requests/${own.data.id}/submit`,
-            "POST",
-            { version: own.data.version },
-            manager,
-          )
-        ).status,
-        409,
-      );
-      assert.equal(
-        (
-          await call(
-            `/requests/${own.data.id}`,
-            "DELETE",
-            { version: own.data.version },
-            manager,
-          )
-        ).status,
-        204,
-      );
-      assert.equal(
-        (await call(`/requests/${own.data.id}`, "GET", undefined, manager))
-          .status,
-        404,
-      );
-      assert.equal(
-        (
-          await call(
-            "/requests?status=APPROVED&page=1",
-            "GET",
-            undefined,
-            employee,
-          )
-        ).data.total,
-        1,
-      );
-      assert.equal(
-        (await call("/auth/logout", "POST", {}, employee)).status,
-        204,
-      );
-      assert.equal(
-        (await call("/auth/me", "GET", undefined, employee)).status,
-        401,
-      );
-    });
-    await runAdminChecks({ t, call, pool, input, password });
-    await runStage4Checks({ t, call, pool, base, input, password });
-  },
-);
+    expect(rejected.status).toBe(200);
+    expect(rejected.data.status).toBe("REJECTED");
+    expect(rejected.data.steps[1].status).toBe("SKIPPED");
+    expect(rejected.data.history.at(-1).comment).toBe("Уточните бюджет");
+  });
+  test("самосогласование, удаление черновика и выход", async () => {
+    const own = await call("/requests", "POST", input, manager);
+    expect(
+      (
+        await call(
+          `/requests/${own.data.id}/submit`,
+          "POST",
+          { version: own.data.version },
+          manager,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await call(
+          `/requests/${own.data.id}`,
+          "DELETE",
+          { version: own.data.version },
+          manager,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (await call(`/requests/${own.data.id}`, "GET", undefined, manager))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await call(
+          "/requests?status=APPROVED&page=1",
+          "GET",
+          undefined,
+          employee,
+        )
+      ).data.total,
+    ).toBe(1);
+    expect((await call("/auth/logout", "POST", {}, employee)).status).toBe(204);
+    expect((await call("/auth/me", "GET", undefined, employee)).status).toBe(
+      401,
+    );
+  });
+  registerAdminChecks(() => ({ call, pool, input, password }));
+  registerStage4Checks(() => ({ call, pool, base, input, password }));
+});

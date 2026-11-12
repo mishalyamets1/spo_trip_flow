@@ -1,17 +1,12 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { test, expect } from "@jest/globals";
 import {
   safeReturnPath,
   workspaceHome,
   workspaceDestination,
 } from "../apps/web/lib/navigation.js";
-
 test("администратор попадает в админку, адреса карточек и фильтры безопасно сохраняются", () => {
-  assert.equal(workspaceHome(["ADMIN"]), "/admin/employees");
-  assert.equal(
-    workspaceDestination("/requests", ["ADMIN"]),
-    "/admin/employees",
-  );
+  expect(workspaceHome(["ADMIN"])).toBe("/admin/employees");
+  expect(workspaceDestination("/requests", ["ADMIN"])).toBe("/admin/employees");
   for (const path of [
     "/admin",
     "/admin/employees",
@@ -22,31 +17,28 @@ test("администратор попадает в админку, адрес�
     "/admin/routes",
     "/admin/audit?page=2",
   ])
-    assert.equal(safeReturnPath(path), path);
-  assert.equal(safeReturnPath("/admin/unknown"), "/requests");
+    expect(safeReturnPath(path)).toBe(path);
+  expect(safeReturnPath("/admin/unknown")).toBe("/requests");
 });
-
 test("навигация согласующего учитывает право создавать заявки и сохраняет назначенные карточки", () => {
-  assert.equal(workspaceHome(["APPROVER"]), "/approvals");
-  assert.equal(workspaceHome(["EMPLOYEE", "APPROVER"]), "/requests");
+  expect(workspaceHome(["APPROVER"])).toBe("/approvals");
+  expect(workspaceHome(["EMPLOYEE", "APPROVER"])).toBe("/requests");
   for (const path of [
     "/requests",
     "/requests?page=2",
     "/requests/new",
     "/requests/3/edit",
   ])
-    assert.equal(workspaceDestination(path, ["APPROVER"]), "/approvals");
+    expect(workspaceDestination(path, ["APPROVER"])).toBe("/approvals");
   for (const path of [
     "/requests/3?from=approvals",
     "/approvals?view=processed&page=2",
   ])
-    assert.equal(workspaceDestination(path, ["APPROVER"]), path);
-  assert.equal(
-    workspaceDestination("/requests/new", ["EMPLOYEE", "APPROVER"]),
+    expect(workspaceDestination(path, ["APPROVER"])).toBe(path);
+  expect(workspaceDestination("/requests/new", ["EMPLOYEE", "APPROVER"])).toBe(
     "/requests/new",
   );
 });
-
 test("после входа сохраняется адрес карточки, редактирования или фильтрованного списка", () => {
   for (const path of [
     "/requests",
@@ -56,9 +48,8 @@ test("после входа сохраняется адрес карточки, 
     "/requests?status=APPROVED&page=2",
     "/approvals",
   ])
-    assert.equal(safeReturnPath(path), path);
+    expect(safeReturnPath(path)).toBe(path);
 });
-
 test("параметр next не перенаправляет на чужой сайт, API или повторный вход", () => {
   for (const path of [
     null,
@@ -71,6 +62,6 @@ test("параметр next не перенаправляет на чужой с
     "/requests/not-an-id",
     "/%2f%2fforeign.test",
   ]) {
-    assert.equal(safeReturnPath(path), "/requests");
+    expect(safeReturnPath(path)).toBe("/requests");
   }
 });

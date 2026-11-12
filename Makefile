@@ -10,7 +10,7 @@ help:
 	@echo "make app            — собрать и запустить всё приложение"
 	@echo "make dev            — frontend и backend локально"
 	@echo "make preview-checks — отдельный учебный UI на 127.0.0.1:3105"
-	@echo "make test           — проверки на отдельной временной БД"
+	@echo "make test           — Jest на отдельной временной БД"
 	@echo "make benchmark      — 10 000 заявок / 50 пользователей, отдельная БД"
 	@echo "make monitor        — доступность live/ready, три проверки"
 	@echo "make verify-runtime — backup/restore и отказ отдельной копии"

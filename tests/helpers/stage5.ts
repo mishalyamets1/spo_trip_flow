@@ -1,25 +1,16 @@
-import assert from "node:assert/strict";
-import type { TestContext } from "node:test";
+import { describe, test, beforeAll, expect } from "@jest/globals";
 import type { Pool } from "pg";
 type Call = (
   path: string,
   method?: string,
   body?: unknown,
   cookie?: string,
-) => Promise<{ status: number; data: any; cookie: string }>;
-export async function runStage5Checks({
-  t,
-  call,
-  pool,
-  admin,
-  employee,
-  manager,
-  finance,
-  root,
-  input,
-  password,
-}: {
-  t: TestContext;
+) => Promise<{
+  status: number;
+  data: any;
+  cookie: string;
+}>;
+type Stage5Context = {
   call: Call;
   pool: Pool;
   admin: string;
@@ -29,20 +20,40 @@ export async function runStage5Checks({
   root: string;
   input: Record<string, unknown>;
   password: string;
-}) {
-  await t.test(
-    "V: справочники — права, версии, отключение и защита используемых значений",
-    async () => {
+};
+export function registerStage5Checks(getContext: () => Stage5Context) {
+  describe("Справочники и полная история", () => {
+    let call: Call,
+      pool: Pool,
+      admin: string,
+      employee: string,
+      manager: string,
+      finance: string,
+      root: string,
+      input: Record<string, unknown>,
+      password: string;
+    beforeAll(() => {
+      ({
+        call,
+        pool,
+        admin,
+        employee,
+        manager,
+        finance,
+        root,
+        input,
+        password,
+      } = getContext());
+    });
+    test("V: справочники — права, версии, отключение и защита используемых значений", async () => {
       const base = "/admin/catalogs/";
-      assert.equal(
+      expect(
         (await call(base + "departments", "GET", undefined, employee)).status,
-        403,
-      );
-      assert.equal(
+      ).toBe(403);
+      expect(
         (await call(base + "unknown", "GET", undefined, admin)).status,
-        400,
-      );
-      assert.equal(
+      ).toBe(400);
+      expect(
         (
           await call(
             base + "expense-categories",
@@ -51,19 +62,18 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        400,
-      );
+      ).toBe(400);
       let result = await call(
         base + "expense-categories",
         "POST",
         { name: "Учебная категория V", code: "TEST_STAGE5", is_active: true },
         admin,
       );
-      assert.equal(result.status, 201);
+      expect(result.status).toBe(201);
       let category = result.data.items.find(
         (c: any) => c.code === "TEST_STAGE5",
       );
-      assert.equal(
+      expect(
         (
           await call(
             base + "expense-categories",
@@ -72,8 +82,7 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        409,
-      );
+      ).toBe(409);
       const create = await call(
         "/requests",
         "POST",
@@ -89,9 +98,9 @@ export async function runStage5Checks({
         },
         employee,
       );
-      assert.equal(create.status, 201);
+      expect(create.status).toBe(201);
       let draft = create.data;
-      assert.equal(
+      expect(
         (
           await call(
             base + "expense-categories/" + category.id,
@@ -100,18 +109,17 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        409,
-      );
+      ).toBe(409);
       result = await call(
         base + "expense-categories/" + category.id,
         "PATCH",
         { ...category, is_active: false },
         admin,
       );
-      assert.equal(result.status, 200);
+      expect(result.status).toBe(200);
       const old = category;
       category = result.data.items.find((c: any) => c.id === category.id);
-      assert.equal(
+      expect(
         (
           await call(
             base + "expense-categories/" + category.id,
@@ -120,15 +128,13 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        409,
-      );
-      assert.equal(
+      ).toBe(409);
+      expect(
         (
           await call("/expense-categories", "GET", undefined, employee)
         ).data.items.some((c: any) => c.id === category.id),
-        false,
-      );
-      assert.equal(
+      ).toBe(false);
+      expect(
         (
           await call(
             "/requests",
@@ -142,8 +148,7 @@ export async function runStage5Checks({
             employee,
           )
         ).status,
-        400,
-      );
+      ).toBe(400);
       const edit = await call(
         "/requests/" + draft.id,
         "PATCH",
@@ -160,9 +165,9 @@ export async function runStage5Checks({
         },
         employee,
       );
-      assert.equal(edit.status, 200);
+      expect(edit.status).toBe(200);
       draft = edit.data;
-      assert.equal(
+      expect(
         (
           await call(
             "/requests/" + draft.id,
@@ -171,9 +176,8 @@ export async function runStage5Checks({
             employee,
           )
         ).status,
-        204,
-      );
-      assert.equal(
+      ).toBe(204);
+      expect(
         (
           await call(
             base + "expense-categories/" + category.id,
@@ -182,15 +186,14 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        204,
-      );
+      ).toBe(204);
       result = await call(
         base + "departments",
         "POST",
         { name: "Учебное подразделение V", is_active: true },
         admin,
       );
-      assert.equal(result.status, 201);
+      expect(result.status).toBe(201);
       let department = result.data.items.find(
         (d: any) => d.name === "Учебное подразделение V",
       );
@@ -211,8 +214,8 @@ export async function runStage5Checks({
         },
         admin,
       );
-      assert.equal(person.status, 201);
-      assert.equal(
+      expect(person.status).toBe(201);
+      expect(
         (
           await call(
             base + "departments/" + department.id,
@@ -221,15 +224,14 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        409,
-      );
+      ).toBe(409);
       result = await call(
         base + "departments/" + department.id,
         "PATCH",
         { ...department, is_active: false },
         admin,
       );
-      assert.equal(result.status, 200);
+      expect(result.status).toBe(200);
       department = result.data.items.find((d: any) => d.id === department.id);
       const newProfile = {
         ...person.data,
@@ -237,11 +239,10 @@ export async function runStage5Checks({
         employee_number: "V-FORBIDDEN",
         password,
       };
-      assert.equal(
+      expect(
         (await call("/admin/employees", "POST", newProfile, admin)).status,
-        400,
-      );
-      assert.equal(
+      ).toBe(400);
+      expect(
         (
           await call(
             "/admin/routes",
@@ -256,9 +257,8 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        400,
-      );
-      assert.equal(
+      ).toBe(400);
+      expect(
         (
           await call(
             "/admin/employees/" + person.data.id,
@@ -271,9 +271,8 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        200,
-      );
-      assert.equal(
+      ).toBe(200);
+      expect(
         (
           await call(
             base + "departments/" + department.id,
@@ -282,13 +281,9 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        204,
-      );
-    },
-  );
-  await t.test(
-    "V: три этапа — каждое решение присутствует в единой истории без дублей",
-    async () => {
+      ).toBe(204);
+    });
+    test("V: три этапа — каждое решение присутствует в единой истории без дублей", async () => {
       const rootUser = (
         await pool.query("SELECT user_id FROM employees WHERE id=$1", [root])
       ).rows[0].user_id;
@@ -306,7 +301,7 @@ export async function runStage5Checks({
         { ...route, approver_ids: [...ids, root] },
         admin,
       );
-      assert.equal(saved.status, 200);
+      expect(saved.status).toBe(200);
       let request = (await call("/requests", "POST", input, employee)).data;
       request = (
         await call(
@@ -328,20 +323,18 @@ export async function runStage5Checks({
           { version: request.version, comment: comments[i] },
           cookie,
         );
-        assert.equal(decision.status, 200);
+        expect(decision.status).toBe(200);
         request = decision.data;
-        assert.equal(request.history.length, 3 + i);
-        assert.equal(
+        expect(request.history.length).toBe(3 + i);
+        expect(
           request.history.filter((h: any) => h.comment === comments[i]).length,
-          1,
-        );
+        ).toBe(1);
       }
-      assert.equal(request.status, "APPROVED");
-      assert.equal(
+      expect(request.status).toBe("APPROVED");
+      expect(
         request.history.find((h: any) => h.comment === comments[1]).event_type,
-        "APPROVAL_DECISION",
-      );
-      assert.equal(
+      ).toBe("APPROVAL_DECISION");
+      expect(
         (
           await call(
             `/requests/${request.id}/history`,
@@ -350,10 +343,9 @@ export async function runStage5Checks({
             employee,
           )
         ).data.items.length,
-        5,
-      );
+      ).toBe(5);
       const current = saved.data.items.find((r: any) => r.id === route.id);
-      assert.equal(
+      expect(
         (
           await call(
             "/admin/routes/" + route.id,
@@ -362,14 +354,13 @@ export async function runStage5Checks({
             admin,
           )
         ).status,
-        200,
-      );
+      ).toBe(200);
       await pool.query("DELETE FROM travel_requests WHERE id=$1", [request.id]);
       await pool.query("DELETE FROM trips WHERE id=$1", [request.trip_id]);
       await pool.query(
         "DELETE FROM user_roles WHERE user_id=$1 AND role_id=(SELECT id FROM roles WHERE code='APPROVER')",
         [rootUser],
       );
-    },
-  );
+    });
+  });
 }

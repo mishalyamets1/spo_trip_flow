@@ -7,10 +7,11 @@
   "scripts": {
     "dev": "concurrently -k -n api,web \"npm run dev -w @tripflow/api\" \"npm run dev -w @tripflow/web\"",
     "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
+    "typecheck": "npm run typecheck --workspaces && tsc -p tests/tsconfig.json",
     "test": "npm run test -w @tripflow/api",
     "format": "prettier --write apps scripts tests docs/api .github package.json docker-compose.yml",
-    "format:check": "prettier --check apps scripts tests docs/api .github package.json docker-compose.yml"
+    "format:check": "prettier --check apps scripts tests docs/api .github package.json docker-compose.yml",
+    "test:coverage": "node scripts/test.mjs --coverage"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -33,7 +33,8 @@ jobs:
           ENV
           make setup
       - run: make check
-      - run: node scripts/test.mjs --coverage
+      - name: Jest — API, database and coverage
+        run: npm run test:coverage
       - run: npm run build
       - name: Package build artifact
         run: |
