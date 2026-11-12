@@ -1,0 +1,49 @@
+name: TripFlow checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - name: Prepare isolated training database
+        run: |
+          cp .env.example .env
+          cat >> .env <<'ENV'
+          POSTGRES_PORT=5433
+          POSTGRES_PASSWORD=ci-owner-synthetic-only
+          TRIP_APP_RW_PASSWORD=ci-app-synthetic-only
+          DATABASE_URL=postgresql://trip_app_rw:ci-app-synthetic-only@127.0.0.1:5433/tripflow
+          ADMIN_PASSWORD=ci-admin-synthetic-only
+          ENV
+          make setup
+      - run: make check
+      - run: node scripts/test.mjs --coverage
+      - run: npm run build
+      - name: Package build artifact
+        run: |
+          mkdir -p output/ci
+          tar --exclude='apps/web/.next/cache' -czf output/ci/tripflow-build.tgz apps/api/dist apps/web/.next docs/api/openapi.yaml
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: tripflow-build-${{ github.sha }}
+          path: output/ci/tripflow-build.tgz
+          retention-days: 7
+      - name: Stop containers
+        if: always()
+        run: docker compose --profile app down

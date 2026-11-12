@@ -16,6 +16,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           ["employees", "Сотрудники"],
           ["requests", "Все заявки"],
           ["routes", "Маршруты"],
+          ["catalogs", "Справочники"],
           ["audit", "Журнал действий"],
         ].map(([path, label]) => (
           <Link

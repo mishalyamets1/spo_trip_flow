@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { pool } from "../db.js";
+import { requestWhere } from "./request-filters.js";
 import type { RequestInput } from "../types/request.js";
 
 export const fields = `r.*, e.full_name AS employee_name, t.destination_country, t.destination_city,
@@ -11,26 +12,11 @@ export async function listOwn(
   employeeId: string,
   filter: { status?: string; from?: string; to?: string; page: number },
 ) {
-  const params: unknown[] = [employeeId];
-  const where = ["r.employee_id=$1"];
-  for (const [sql, value] of [
-    ["r.status", filter.status],
-    ["t.start_date >=", filter.from],
-    ["t.end_date <=", filter.to],
-  ] as const) {
-    if (value) {
-      params.push(value);
-      where.push(`${sql}${sql.endsWith("=") ? "" : "="}$${params.length}`);
-    }
-  }
-  const condition = where.join(" AND ");
-  const count = await pool.query(
-    `SELECT count(*) ${joins} WHERE ${condition}`,
-    params,
-  );
+  const { params, where } = requestWhere(filter, employeeId);
+  const count = await pool.query(`SELECT count(*) ${joins}${where}`, params);
   params.push(20, (filter.page - 1) * 20);
   const data = await pool.query(
-    `SELECT ${fields} ${joins} WHERE ${condition}
+    `SELECT ${fields} ${joins}${where}
     ORDER BY r.created_at DESC,r.id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
@@ -67,7 +53,21 @@ export async function listExpenses(id: string) {
 export async function listHistory(id: string) {
   return (
     await pool.query(
-      `SELECT h.*, h.changed_by_name_snapshot AS changed_by_name FROM request_status_history h WHERE request_id=$1 ORDER BY changed_at,h.id`,
+      `SELECT * FROM (
+       SELECT h.id::text AS id,h.request_id,h.old_status,h.new_status,h.changed_by_employee_id,
+        h.comment,h.changed_at,h.changed_by_name_snapshot AS changed_by_name,
+        'STATUS_CHANGE' AS event_type,NULL::smallint AS step_order
+       FROM request_status_history h WHERE h.request_id=$1
+       UNION ALL
+       SELECT 'approval-'||a.id,a.request_id,NULL::varchar,
+        CASE WHEN a.status='REJECTED' THEN 'REJECTED'
+         WHEN EXISTS(SELECT 1 FROM approval_steps later WHERE later.request_id=a.request_id AND later.step_order>a.step_order) THEN 'UNDER_REVIEW'
+         ELSE 'APPROVED' END,a.approver_employee_id,a.decision_comment,a.decided_at,
+        a.approver_name_snapshot,'APPROVAL_DECISION',a.step_order
+       FROM approval_steps a WHERE a.request_id=$1 AND a.status IN ('APPROVED','REJECTED')
+        AND NOT EXISTS(SELECT 1 FROM request_status_history h WHERE h.request_id=a.request_id
+         AND h.changed_at=a.decided_at AND h.changed_by_employee_id IS NOT DISTINCT FROM a.approver_employee_id)
+       ) events ORDER BY changed_at,event_type,CASE WHEN id LIKE 'approval-%' THEN substring(id FROM 10)::bigint ELSE id::bigint END`,
       [id],
     )
   ).rows;
@@ -98,6 +98,18 @@ export async function replaceExpenses(
       [id, item.category_id, item.amount, item.description],
     );
   }
+}
+export async function usableCategories(
+  client: PoolClient,
+  ids: string[],
+  requestId?: string,
+) {
+  const unique = [...new Set(ids)];
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*) FROM expense_categories c WHERE c.id=ANY($1::smallint[]) AND (c.is_active OR EXISTS(SELECT 1 FROM expense_estimates x WHERE x.request_id=$2 AND x.category_id=c.id))`,
+    [unique, requestId || null],
+  );
+  return Number(result.rows[0].count) === unique.length;
 }
 export async function findOwnForUpdate(
   client: PoolClient,

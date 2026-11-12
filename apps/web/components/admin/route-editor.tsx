@@ -66,8 +66,13 @@ export function RouteEditor({
                 }
               >
                 {metadata.departments.map((d) => (
-                  <option key={d.id} value={d.id}>
+                  <option
+                    key={d.id}
+                    value={d.id}
+                    disabled={!d.is_active && route?.department_id !== d.id}
+                  >
                     {d.name}
+                    {d.is_active ? "" : " (отключено)"}
                   </option>
                 ))}
               </select>

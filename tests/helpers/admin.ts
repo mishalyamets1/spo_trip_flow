@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
 import type { Pool } from "pg";
+import { runStage5Checks } from "./stage5.js";
 type Call = (
   path: string,
   method?: string,
@@ -650,6 +651,18 @@ export async function runAdminChecks({
     },
   );
   // Keep the following stage-IV test expectations independent of these fixtures.
+  await runStage5Checks({
+    t,
+    call,
+    pool,
+    admin,
+    employee,
+    manager,
+    finance,
+    root,
+    input,
+    password,
+  });
   await pool.query("DELETE FROM travel_requests WHERE id=ANY($1::bigint[])", [
     [foreignDecision.id, foreignPending.id],
   ]);

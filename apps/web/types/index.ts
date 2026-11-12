@@ -23,6 +23,8 @@ export type Step = {
   decided_at?: string | null;
 };
 export type History = {
+  event_type?: "STATUS_CHANGE" | "APPROVAL_DECISION";
+  step_order?: number | null;
   id: string;
   new_status: string;
   changed_by_name: string;

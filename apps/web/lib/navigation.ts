@@ -31,7 +31,7 @@ export function safeReturnPath(value: string | null): string {
         /^\/(requests(?:\/(?:new|[1-9]\d{0,17}(?:\/edit)?))?|approvals)$/.test(
           url.pathname,
         ) ||
-        /^\/admin(?:\/(?:employees(?:\/(?:new|[1-9]\d{0,17}))?|requests(?:\/[1-9]\d{0,17})?|routes|audit))?$/.test(
+        /^\/admin(?:\/(?:employees(?:\/(?:new|[1-9]\d{0,17}))?|requests(?:\/[1-9]\d{0,17})?|routes|catalogs|audit))?$/.test(
           url.pathname,
         )
       )

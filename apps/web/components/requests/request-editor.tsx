@@ -17,7 +17,15 @@ export function RequestEditor({ id }: { id?: string }) {
       requestsApi.categories(),
       id ? requestsApi.get(id) : Promise.resolve(null),
     ]);
-    return { categories, request };
+    const choices = [...categories];
+    for (const expense of request?.expenses || []) {
+      if (!choices.some((c) => c.id === expense.category_id))
+        choices.push({
+          id: expense.category_id,
+          name: (expense.category_name || "Категория") + " (отключена)",
+        });
+    }
+    return { categories: choices, request };
   }, [id]);
   const { data, loading, error, reload } = useResource(load);
   const action = useApiAction();

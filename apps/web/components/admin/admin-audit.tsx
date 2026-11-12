@@ -6,6 +6,9 @@ import { useResource } from "../../hooks/use-resource";
 import { ErrorAlert, Loading } from "../ui/feedback";
 import { AdminPagination } from "./admin-pagination";
 const labels: Record<string, string> = {
+  "catalog.create": "Создано значение справочника",
+  "catalog.update": "Изменён справочник",
+  "catalog.delete": "Удалено значение справочника",
   "employee.create": "Создан сотрудник",
   "employee.update": "Изменён сотрудник",
   "employee.delete": "Удалён сотрудник и его заявки",
@@ -56,6 +59,8 @@ export function AdminAudit() {
                       <td>{labels[item.action] || item.action}</td>
                       <td>
                         {{
+                          departments: "Подразделение",
+                          "expense-categories": "Категория расходов",
                           employee: "Сотрудник",
                           request: "Заявка",
                           route: "Маршрут",
