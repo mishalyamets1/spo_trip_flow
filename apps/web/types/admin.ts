@@ -14,7 +14,7 @@ export type AdminEmployee = {
   version: number;
 };
 export type AdminMetadata = {
-  departments: { id: string; name: string }[];
+  departments: { id: string; name: string; is_active: boolean }[];
   approvers: AdminEmployee[];
 };
 export type EmployeePreview = {

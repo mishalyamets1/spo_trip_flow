@@ -3,7 +3,7 @@
   "info":
     {
       "title": "TripFlow API",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "description": "Учебная версия с администрированием. Все изменяющие запросы требуют Content-Type application/json и Origin из разрешённого списка APP_ORIGIN. Для локального APP_ORIGIN разрешены localhost и 127.0.0.1 на настроенном порту, также в Docker. В режиме разработки дополнительно разрешены оба имени на портах 3000/3001. Сессия в HttpOnly cookie на 8 часов; SameSite=Lax, Secure при COOKIE_SECURE=true. Идентификаторы BIGINT и суммы NUMERIC передаются строками. Ошибочный JSON: 400, слишком большой запрос: 413, неверный Content-Type: 415. Чужие заявки скрыты ответом 404. Отмена заявки доступна автору до первого решения. Администрирование /admin/* доступно только роли ADMIN; действия записываются в журнал.",
     },
   "servers": [{ "url": "/api" }],
@@ -1305,7 +1305,7 @@
           "get":
             {
               "summary": "История статусов",
-              "description": "UC-05. Доступ как к карточке.",
+              "description": "Единая хронология смен статуса и решений всех этапов; промежуточные решения без смены статуса также включены, без дублирования уже отражённых событий.",
               "responses":
                 {
                   "200":
@@ -3956,6 +3956,422 @@
                 },
             },
         },
+      "/admin/catalogs/{kind}":
+        {
+          "get":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Список справочника с активностью и числом ссылок",
+              "description": "Только ADMIN. Удаление используемого значения запрещено (409); можно отключить значение. Изменения фиксируются в журнале.",
+              "parameters":
+                [
+                  {
+                    "name": "kind",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "enum": ["departments", "expense-categories"] },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/CatalogResult",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Недостаточно прав",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Значение не найдено",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Значение используется, дублируется или версия устарела",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "post":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Создать значение справочника",
+              "description": "Только ADMIN. Удаление используемого значения запрещено (409); можно отключить значение. Изменения фиксируются в журнале.",
+              "parameters":
+                [
+                  {
+                    "name": "kind",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "enum": ["departments", "expense-categories"] },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/CatalogInput" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "201":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/CatalogResult",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Недостаточно прав",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Значение не найдено",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Значение используется, дублируется или версия устарела",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/admin/catalogs/{kind}/{id}":
+        {
+          "patch":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Изменить или отключить значение",
+              "description": "Только ADMIN. Удаление используемого значения запрещено (409); можно отключить значение. Изменения фиксируются в журнале.",
+              "parameters":
+                [
+                  {
+                    "name": "kind",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "enum": ["departments", "expense-categories"] },
+                  },
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "allOf":
+                                [
+                                  {
+                                    "$ref": "#/components/schemas/CatalogInput",
+                                  },
+                                  { "required": ["version"] },
+                                ],
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Успешно",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/CatalogResult",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Недостаточно прав",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Значение не найдено",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Значение используется, дублируется или версия устарела",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "delete":
+            {
+              "tags": ["Администрирование"],
+              "summary": "Удалить неиспользуемое значение",
+              "description": "Только ADMIN. Удаление используемого значения запрещено (409); можно отключить значение. Изменения фиксируются в журнале.",
+              "parameters":
+                [
+                  {
+                    "name": "kind",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "enum": ["departments", "expense-categories"] },
+                  },
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "$ref": "#/components/schemas/Id" },
+                  },
+                ],
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema": { "$ref": "#/components/schemas/Version" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "204": { "description": "Удалено" },
+                  "400":
+                    {
+                      "description": "Некорректные данные",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Нет сессии",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Недостаточно прав",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Значение не найдено",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "Значение используется, дублируется или версия устарела",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     },
   "components":
     {
@@ -4134,12 +4550,19 @@
               "type": "object",
               "properties":
                 {
-                  "id": { "$ref": "#/components/schemas/Id" },
+                  "id":
+                    {
+                      "type": "string",
+                      "description": "Числовой id смены статуса либо approval-<id этапа> для решения без смены статуса",
+                    },
                   "old_status": { "type": ["string", "null"] },
                   "new_status": { "type": "string" },
                   "changed_by_name": { "type": "string" },
                   "changed_at": { "type": "string", "format": "date-time" },
                   "comment": { "type": ["string", "null"] },
+                  "event_type":
+                    { "enum": ["STATUS_CHANGE", "APPROVAL_DECISION"] },
+                  "step_order": { "type": ["integer", "null"] },
                 },
             },
           "RequestSummary":
@@ -4525,6 +4948,7 @@
                             {
                               "id": { "$ref": "#/components/schemas/Id" },
                               "name": { "type": "string" },
+                              "is_active": { "type": "boolean" },
                             },
                         },
                     },
@@ -4560,6 +4984,9 @@
                           "request.cancel",
                           "request.reassign",
                           "route.save",
+                          "catalog.create",
+                          "catalog.update",
+                          "catalog.delete",
                         ],
                     },
                   "entity_type": { "type": "string" },
@@ -4568,6 +4995,54 @@
                   "details": { "type": "object" },
                   "created_at": { "type": "string", "format": "date-time" },
                 },
+            },
+          "CatalogInput":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "name":
+                    { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "code":
+                    {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9_]*$",
+                      "maxLength": 30,
+                    },
+                  "is_active": { "type": "boolean" },
+                  "version": { "type": "integer", "minimum": 1 },
+                },
+              "required": ["name", "is_active"],
+              "description": "code обязателен для категорий расходов; version обязателен при изменении. Отключённые значения сохраняются в существующих данных.",
+            },
+          "CatalogEntry":
+            {
+              "allOf":
+                [
+                  { "$ref": "#/components/schemas/CatalogInput" },
+                  {
+                    "type": "object",
+                    "properties":
+                      {
+                        "id": { "$ref": "#/components/schemas/Id" },
+                        "reference_count": { "type": "integer", "minimum": 0 },
+                      },
+                    "required": ["id", "version", "reference_count"],
+                  },
+                ],
+            },
+          "CatalogResult":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "items":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/CatalogEntry" },
+                    },
+                },
+              "required": ["items"],
             },
         },
     },

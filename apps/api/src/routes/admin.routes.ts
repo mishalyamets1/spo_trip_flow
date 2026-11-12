@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ensure } from "../errors.js";
 import * as c from "../controllers/admin.controller.js";
+import * as catalogs from "../controllers/admin-catalog.controller.js";
 export const adminRoutes = Router();
 adminRoutes.use((req, _res, next) => {
   ensure(
@@ -24,3 +25,7 @@ adminRoutes.get("/routes", c.routes);
 adminRoutes.post("/routes", c.createRoute);
 adminRoutes.patch("/routes/:id", c.updateRoute);
 adminRoutes.get("/audit", c.audit);
+adminRoutes.get("/catalogs/:kind", catalogs.list);
+adminRoutes.post("/catalogs/:kind", catalogs.create);
+adminRoutes.patch("/catalogs/:kind/:id", catalogs.update);
+adminRoutes.delete("/catalogs/:kind/:id", catalogs.remove);

@@ -5,6 +5,7 @@ import type { User } from "../types/user.js";
 import * as repo from "../repositories/admin.repository.js";
 import * as requests from "../repositories/request.repository.js";
 import * as approvals from "../repositories/approval.repository.js";
+import { activeDepartment } from "../repositories/admin-catalog.repository.js";
 import type { PoolClient } from "pg";
 import type { z } from "zod";
 import type {
@@ -14,7 +15,7 @@ import type {
   routeSchema,
 } from "../validators/admin.validation.js";
 
-async function adminTransaction<T>(
+export async function adminTransaction<T>(
   user: User,
   work: (client: PoolClient) => Promise<T>,
 ) {
@@ -39,6 +40,11 @@ export async function createEmployee(
 ) {
   const hash = await hashPassword(input.password);
   const id = await adminTransaction(user, async (client) => {
+    ensure(
+      await activeDepartment(client, input.department_id),
+      400,
+      "Выберите активное подразделение",
+    );
     const id = await repo.writeEmployee(client, input, undefined, hash);
     await repo.audit(
       client,
@@ -67,6 +73,12 @@ export async function updateEmployee(
       "Сотрудник уже изменён. Обновите данные",
     );
     const old = await repo.findEmployee(id, client);
+    ensure(
+      old.department_id === input.department_id ||
+        (await activeDepartment(client, input.department_id)),
+      400,
+      "Выберите активное подразделение",
+    );
     if (
       old.roles.includes("ADMIN") &&
       (!input.roles.includes("ADMIN") || !input.is_active)
@@ -300,8 +312,14 @@ export async function saveRoute(
         400,
         "Подразделение существующего маршрута нельзя менять",
       );
-    } else
+    } else {
       ensure(input.version === 0, 400, "Новый маршрут должен иметь version=0");
+      ensure(
+        await activeDepartment(client, input.department_id),
+        400,
+        "Выберите активное подразделение",
+      );
+    }
     for (const employeeId of input.approver_ids)
       ensure(
         await repo.validApprover(client, employeeId),

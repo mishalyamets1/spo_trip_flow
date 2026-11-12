@@ -141,8 +141,15 @@ export function EmployeeEditor({ id }: { id?: string }) {
                         }
                       >
                         {data.metadata.departments.map((d) => (
-                          <option key={d.id} value={d.id}>
+                          <option
+                            key={d.id}
+                            value={d.id}
+                            disabled={
+                              !d.is_active && employee?.department_id !== d.id
+                            }
+                          >
                             {d.name}
+                            {d.is_active ? "" : " (отключено)"}
                           </option>
                         ))}
                       </select>

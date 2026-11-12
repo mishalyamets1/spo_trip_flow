@@ -3,13 +3,14 @@ import { pool } from "../db.js";
 import type { User } from "../types/user.js";
 import type { EmployeeInput } from "../validators/admin.validation.js";
 import { fields, joins } from "./request.repository.js";
+import { requestWhere } from "./request-filters.js";
 
 const employeeSelect = `SELECT e.*,to_char(e.hire_date,'YYYY-MM-DD') AS hire_date,u.email,u.is_active,
  d.name AS department_name,ARRAY(SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id ORDER BY r.code) AS roles
  FROM employees e JOIN users u ON u.id=e.user_id JOIN departments d ON d.id=e.department_id`;
 export async function metadata() {
   const [departments, approvers] = await Promise.all([
-    pool.query("SELECT id,name FROM departments ORDER BY name,id"),
+    pool.query("SELECT id,name,is_active FROM departments ORDER BY name,id"),
     pool.query(
       `${employeeSelect} WHERE u.is_active AND EXISTS(SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='APPROVER') ORDER BY e.full_name,e.id`,
     ),
@@ -259,27 +260,8 @@ export async function listRequests(filter: {
   to?: string;
   page: number;
 }) {
-  const params: unknown[] = [];
-  const where: string[] = [];
-  if (filter.q) {
-    params.push(`%${filter.q}%`);
-    where.push(
-      `(r.number ILIKE $${params.length} OR e.full_name ILIKE $${params.length})`,
-    );
-  }
-  for (const [column, value] of [
-    ["r.employee_id =", filter.employee_id],
-    ["e.department_id =", filter.department_id],
-    ["r.status =", filter.status],
-    ["t.start_date >=", filter.from],
-    ["t.end_date <=", filter.to],
-  ]) {
-    if (value) {
-      params.push(value);
-      where.push(`${column}$${params.length}`);
-    }
-  }
-  const source = `${joins}${where.length ? " WHERE " + where.join(" AND ") : ""}`;
+  const { params, where } = requestWhere(filter);
+  const source = `${joins}${where}`;
   const count = await pool.query(`SELECT count(*) ${source}`, params);
   params.push(20, (filter.page - 1) * 20);
   const result = await pool.query(

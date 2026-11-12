@@ -1,0 +1,1 @@
+DROP INDEX trip_app.idx_travel_requests_employee_created;

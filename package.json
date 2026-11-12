@@ -9,8 +9,8 @@
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test -w @tripflow/api",
-    "format": "prettier --write apps scripts tests docs/api package.json docker-compose.yml",
-    "format:check": "prettier --check apps scripts tests docs/api package.json docker-compose.yml"
+    "format": "prettier --write apps scripts tests docs/api .github package.json docker-compose.yml",
+    "format:check": "prettier --check apps scripts tests docs/api .github package.json docker-compose.yml"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

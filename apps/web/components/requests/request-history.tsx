@@ -9,7 +9,11 @@ export function RequestHistory({ request }: { request: TravelRequest }) {
           <li key={h.id}>
             <span className="history-dot" />
             <div>
-              <strong>{statuses[h.new_status]}</strong>
+              <strong>
+                {h.event_type === "APPROVAL_DECISION"
+                  ? `Этап ${h.step_order}: ${h.new_status === "REJECTED" ? "отклонено" : "согласовано"}`
+                  : statuses[h.new_status]}
+              </strong>
               <p className="pre-wrap">{h.comment}</p>
               <span className="muted">
                 {h.changed_by_name} ·{" "}

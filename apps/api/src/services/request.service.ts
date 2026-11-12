@@ -76,11 +76,28 @@ export async function saveRequest(
     if (id) {
       ensure(input.version, 400, "Укажите версию заявки");
       const request = await lockOwn(client, user, id, input.version);
+      ensure(
+        await requests.usableCategories(
+          client,
+          input.expenses.map((e) => e.category_id),
+          id,
+        ),
+        400,
+        "Категория расходов недоступна",
+      );
       await requests.updateTrip(client, request.trip_id, input);
       await requests.updateDraft(client, id, input, total);
       await requests.replaceExpenses(client, id, input.expenses);
       return id;
     }
+    ensure(
+      await requests.usableCategories(
+        client,
+        input.expenses.map((e) => e.category_id),
+      ),
+      400,
+      "Категория расходов недоступна",
+    );
     const tripId = await requests.createTrip(client, input);
     // Identity allocation is atomic; gaps after rollback are expected.
     const requestId = await requests.allocateId(client);
